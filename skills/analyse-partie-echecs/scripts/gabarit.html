@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITRE__</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=JetBrains+Mono:wght@400;500;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<style>
+:root{
+  --bg:#efeee7; --surface:#f8f7f2; --surface-2:#e5e4d9; --sunk:#e9e8de;
+  --ink:#1a1d18; --ink-2:#43483f; --muted:#757b70; --line:#d2d1c4; --line-2:#bcbbac;
+  --accent:#55743f; --accent-2:#3f5a2d; --accent-soft:#dde5cf;
+  --danger:#a4382b; --danger-soft:#f1dcd8;
+  --amber:#a3731a; --amber-soft:#f0e3c8;
+  --shadow:0 1px 2px rgba(26,29,24,.06), 0 8px 24px -14px rgba(26,29,24,.28);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#15180f; --surface:#1d2118; --surface-2:#282d22; --sunk:#191d14;
+    --ink:#eeece0; --ink-2:#c2c5b6; --muted:#8d9384; --line:#333a2b; --line-2:#464e3c;
+    --accent:#93b06c; --accent-2:#a9c383; --accent-soft:#2b3522;
+    --danger:#dc7565; --danger-soft:#3d221d;
+    --amber:#d8a445; --amber-soft:#3a2f14;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -16px rgba(0,0,0,.7);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#15180f; --surface:#1d2118; --surface-2:#282d22; --sunk:#191d14;
+  --ink:#eeece0; --ink-2:#c2c5b6; --muted:#8d9384; --line:#333a2b; --line-2:#464e3c;
+  --accent:#93b06c; --accent-2:#a9c383; --accent-soft:#2b3522;
+  --danger:#dc7565; --danger-soft:#3d221d; --amber:#d8a445; --amber-soft:#3a2f14;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);margin:0;
+  font-family:"Source Serif 4",Georgia,serif;font-size:17px;line-height:1.62;
+  -webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto;padding:0 24px 90px}
+.col{max-width:660px}
+h1,h2,h3{font-family:"Bricolage Grotesque","Helvetica Neue",Arial,sans-serif;text-wrap:balance}
+.eyebrow,.tag,.stat .k,.stat .v,.line,.swing,.mv,svg text{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace}
+.defs{position:absolute;width:0;height:0;overflow:hidden}
+
+header{padding:60px 0 30px;border-bottom:1px solid var(--line)}
+.eyebrow{font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:500}
+h1{font-size:clamp(2.1rem,5.4vw,3.5rem);line-height:1;font-weight:800;letter-spacing:-.028em;margin:.3em 0 .28em}
+.lede{font-size:1.12rem;color:var(--ink-2);max-width:62ch;margin:0}
+.lede b{color:var(--ink);font-weight:600}
+.sous{color:var(--muted);font-size:14px;margin:.5em 0 0}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(152px,1fr));gap:1px;
+  background:var(--line);border:1px solid var(--line);margin:34px 0 0}
+.stat{background:var(--surface);padding:15px 16px}
+.stat .k{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.stat .v{font-size:1.6rem;font-weight:700;letter-spacing:-.03em;margin-top:6px;line-height:1;
+  font-variant-numeric:tabular-nums}
+.stat .n{font-size:12.5px;color:var(--muted);margin-top:5px}
+.up{color:var(--accent)}.down{color:var(--danger)}
+
+section{padding-top:56px}
+.shead{display:flex;align-items:baseline;gap:14px;margin-bottom:4px}
+.shead .rule{flex:1;height:1px;background:var(--line)}
+h2{font-size:clamp(1.5rem,3.2vw,2.1rem);font-weight:800;letter-spacing:-.022em;margin:.15em 0 .5em;line-height:1.1}
+h3{font-size:1.12rem;font-weight:600;margin:0 0 .5em}
+p{margin:0 0 1em}
+a{color:var(--accent-2);text-underline-offset:3px}
+strong{font-weight:600}
+.mv{font-weight:500;background:var(--sunk);border:1px solid var(--line);padding:.05em .34em;
+  border-radius:3px;font-size:.87em;white-space:nowrap}
+.mv.good{color:var(--accent-2);border-color:var(--accent);background:var(--accent-soft)}
+.mv.bad{color:var(--danger);border-color:var(--danger);background:var(--danger-soft)}
+
+figure{margin:32px 0;background:var(--surface);border:1px solid var(--line);padding:20px 20px 14px}
+figcaption{font-size:13px;color:var(--muted);margin-top:10px;line-height:1.5}
+svg.chart{display:block;width:100%;height:auto;overflow:visible}
+svg.chart text{font-size:10.5px;fill:var(--muted)}
+svg.chart text.val{fill:var(--danger);font-weight:700}
+svg.chart .grid{stroke:var(--line);stroke-width:1}
+
+.pos{display:grid;grid-template-columns:340px 1fr;gap:28px;align-items:start;background:var(--surface);
+  border:1px solid var(--line);padding:22px;margin:24px 0;box-shadow:var(--shadow)}
+.pos .board{width:100%;height:auto;display:block;border:1px solid var(--line-2)}
+.pos-body{min-width:0}
+.pos-h{display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin-bottom:12px}
+.tag{font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:3px 7px;border-radius:2px;
+  background:var(--surface-2);color:var(--ink-2);font-weight:500}
+.tag.red{background:var(--danger-soft);color:var(--danger)}
+.tag.grn{background:var(--accent-soft);color:var(--accent-2)}
+.tag.amb{background:var(--amber-soft);color:var(--amber)}
+.pos p{font-size:.95rem;margin-bottom:.7em}
+.swing{display:flex;align-items:center;gap:10px;font-size:.9rem;font-variant-numeric:tabular-nums;
+  margin:12px 0 14px;flex-wrap:wrap}
+.swing .from{color:var(--accent-2);font-weight:700}
+.swing .to{color:var(--danger);font-weight:700}
+.swing .arrow-i,.swing .mut{color:var(--muted)}
+.answer{border-top:1px solid var(--line);padding-top:12px}
+.line{font-size:.88rem;margin-bottom:6px}
+.line.good{color:var(--accent-2)}
+.line.bad{color:var(--danger)}
+.note{margin:6px 0 0;font-size:.9rem;color:var(--ink-2)}
+
+table{border-collapse:collapse;width:100%;font-size:14.5px;margin:18px 0}
+th{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);text-align:left;
+  font-weight:500;padding:0 12px 7px 0;border-bottom:1px solid var(--line-2);
+  font-family:"JetBrains Mono",monospace}
+td{padding:8px 12px 8px 0;border-bottom:1px solid var(--line)}
+td.n,th.n{font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums;text-align:right;
+  white-space:nowrap;padding-right:16px}
+tr:last-child td{border-bottom:none}
+.col table{max-width:none}
+.key{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--accent);
+  padding:20px 24px;margin:28px 0;max-width:none}
+.key ol{margin:0;padding-left:1.3em}
+.key li{margin-bottom:.6em}.key li:last-child{margin-bottom:0}
+footer{margin-top:70px;padding-top:24px;border-top:1px solid var(--line);font-size:13.5px;color:var(--muted)}
+footer p{max-width:70ch}
+/* --- lecteur de séquence : un échiquier qui avance coup par coup --- */
+.seq{position:relative}
+.seq:focus-visible{outline:2px solid var(--accent);outline-offset:4px}
+.seq-boards{position:relative}
+.seq-etape{display:none}
+.seq-etape.on{display:block}
+.seq-ctrl{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
+.seq-b{font-family:"JetBrains Mono",monospace;font-size:13px;line-height:1;
+  background:var(--surface-2);border:1px solid var(--line-2);color:var(--ink);
+  padding:7px 11px;border-radius:4px;cursor:pointer}
+.seq-b:hover:not(:disabled){border-color:var(--accent);color:var(--accent-2)}
+.seq-b:disabled{opacity:.38;cursor:default}
+.seq-reset{margin-left:auto;font-size:11.5px;letter-spacing:.04em}
+.seq-cnt{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--muted);
+  font-variant-numeric:tabular-nums;min-width:46px;text-align:center}
+.seq-cnt b{color:var(--ink);font-weight:700}
+.seq-legs{margin-top:9px;min-height:3.1em}
+.pos-gauche{min-width:0}
+.seq-titre{margin:22px 0 10px;padding-top:16px;border-top:1px solid var(--line);
+  font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--accent-2)}
+.seq-leg{display:none;font-size:.88rem;color:var(--ink-2);line-height:1.5}
+.seq-leg.on{display:block}
+.seq-leg strong{font-family:"JetBrains Mono",monospace;font-size:.85rem;color:var(--accent-2)}
+.pos-seq{grid-template-columns:360px 1fr}
+
+@media (max-width:760px){body{font-size:16px}.pos,.pos-seq{grid-template-columns:1fr;gap:18px}.wrap{padding:0 18px 70px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<svg class="defs" aria-hidden="true">__DEFS__</svg>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">__EYEBROW__</div>
+  <h1>__TITRE__</h1>
+  <p class="lede">__CHAPEAU__</p>
+  <p class="sous">__SOUS__</p>
+  <div class="stats">__STATS__</div>
+</header>
+
+<section>
+  <div class="shead"><span class="eyebrow">Le fil de la partie</span><span class="rule"></span></div>
+  <h2>L'évaluation, coup par coup</h2>
+  <figure>
+    __COURBE__
+    <figcaption>__LEGENDE_COURBE__</figcaption>
+  </figure>
+</section>
+
+<section>
+  <div class="shead"><span class="eyebrow">Les positions</span><span class="rule"></span></div>
+  <h2>Les moments qui comptent</h2>
+  __CARTES__
+</section>
+
+__SECTIONS__
+
+<section>
+  <div class="shead"><span class="eyebrow">À retenir</span><span class="rule"></span></div>
+  <h2>Ce qu'il faut garder de cette partie</h2>
+  <div class="col">__CONCLUSION__</div>
+</section>
+
+<footer>
+  <p><strong>Méthode.</strong> Analyse Stockfish de chaque position (analyser.py, profondeur 22 par
+  défaut), chaque coup comparé au meilleur coup de la position. Gaffe : au moins 300 centipions
+  perdus ; erreur : 100 à 299. Les pièces en prise et les pièces gratuites sont détectées par
+  analyse statique des suites de prises sur chaque case. __METHODE__</p>
+  <p>Flèche verte : le meilleur coup. Flèche rouge : le coup joué.
+  <a href="__LIEN__">Revoir la partie sur chess.com →</a></p>
+</footer>
+
+</div>
+</body>
+</html>

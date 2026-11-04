@@ -1,0 +1,27 @@
+# Données personnelles : jamais dans le dépôt
+entraineur/donnees/
+entraineur/_sauvegardes/
+**/donnees.json
+**/donnees.json.tmp
+
+# Profil personnel du skill Claude (profil-exemple.md, lui, est public)
+skills/analyse-partie-echecs/profil.md
+
+# Android : clé de signature et APK construits
+android/cle/
+*.p12
+*.jks
+*.keystore
+*.apk
+
+# Parties et sorties d'analyse
+*.pgn
+analyse*.json
+commentaires*.json
+rapports/
+
+# Système et outils
+.DS_Store
+__pycache__/
+*.pyc
+node_modules/

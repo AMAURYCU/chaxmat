@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- English (default). French: values-fr/strings.xml -->
+<resources>
+    <string name="app_name">Chess Coach</string>
+    <string name="aucune_appli">No app available to save the file.</string>
+    <string name="enregistre">File saved.</string>
+    <string name="echec_enregistrement">Could not save the file.</string>
+    <string name="choisir_pgn">Choose a PGN file</string>
+</resources>

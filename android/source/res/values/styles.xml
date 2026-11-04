@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="fond">#efeee7</color>
+    <color name="fond_icone">#55743f</color>
+    <style name="Theme.Entraineur" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/fond</item>
+        <item name="android:statusBarColor">#f8f7f2</item>
+        <item name="android:navigationBarColor">#efeee7</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>

@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Entraîneur d'ouvertures</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=JetBrains+Mono:wght@400;500;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 45 45'%3E%3Ctext y='36' font-size='38'%3E%E2%99%9F%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="chargement" hidden><i></i><span></span></div>
+<svg class="defs" aria-hidden="true"><g id="white-pawn" class="white pawn"><path d="M22.5 9c-2.21 0-4 1.79-4 4 0 .89.29 1.71.78 2.38C17.33 16.5 16 18.59 16 21c0 2.03.94 3.84 2.41 5.03-3 1.06-7.41 5.55-7.41 13.47h23c0-7.92-4.41-12.41-7.41-13.47 1.47-1.19 2.41-3 2.41-5.03 0-2.41-1.33-4.5-3.28-5.62.49-.67.78-1.49.78-2.38 0-2.21-1.79-4-4-4z" fill="#fff" stroke="#000" stroke-width="1.5" stroke-linecap="round" /></g><g id="white-knight" class="white knight" fill="none" fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M 22,10 C 32.5,11 38.5,18 38,39 L 15,39 C 15,30 25,32.5 23,18" style="fill:#ffffff; stroke:#000000;" /><path d="M 24,18 C 24.38,20.91 18.45,25.37 16,27 C 13,29 13.18,31.34 11,31 C 9.958,30.06 12.41,27.96 11,28 C 10,28 11.19,29.23 10,30 C 9,30 5.997,31 6,26 C 6,24 12,14 12,14 C 12,14 13.89,12.1 14,10.5 C 13.27,9.506 13.5,8.5 13.5,7.5 C 14.5,6.5 16.5,10 16.5,10 L 18.5,10 C 18.5,10 19.28,8.008 21,7 C 22,7 22,10 22,10" style="fill:#ffffff; stroke:#000000;" /><path d="M 9.5 25.5 A 0.5 0.5 0 1 1 8.5,25.5 A 0.5 0.5 0 1 1 9.5 25.5 z" style="fill:#000000; stroke:#000000;" /><path d="M 15 15.5 A 0.5 1.5 0 1 1 14,15.5 A 0.5 1.5 0 1 1 15 15.5 z" transform="matrix(0.866,0.5,-0.5,0.866,9.693,-5.173)" style="fill:#000000; stroke:#000000;" /></g><g id="white-bishop" class="white bishop" fill="none" fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><g fill="#fff" stroke-linecap="butt"><path d="M9 36c3.39-.97 10.11.43 13.5-2 3.39 2.43 10.11 1.03 13.5 2 0 0 1.65.54 3 2-.68.97-1.65.99-3 .5-3.39-.97-10.11.46-13.5-1-3.39 1.46-10.11.03-13.5 1-1.354.49-2.323.47-3-.5 1.354-1.94 3-2 3-2zM15 32c2.5 2.5 12.5 2.5 15 0 .5-1.5 0-2 0-2 0-2.5-2.5-4-2.5-4 5.5-1.5 6-11.5-5-15.5-11 4-10.5 14-5 15.5 0 0-2.5 1.5-2.5 4 0 0-.5.5 0 2zM25 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 1 1 5 0z" /></g><path d="M17.5 26h10M15 30h15m-7.5-14.5v5M20 18h5" stroke-linejoin="miter" /></g><g id="white-rook" class="white rook" fill="#fff" fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 39h27v-3H9v3zM12 36v-4h21v4H12zM11 14V9h4v2h5V9h5v2h5V9h4v5" stroke-linecap="butt" /><path d="M34 14l-3 3H14l-3-3" /><path d="M31 17v12.5H14V17" stroke-linecap="butt" stroke-linejoin="miter" /><path d="M31 29.5l1.5 2.5h-20l1.5-2.5" /><path d="M11 14h23" fill="none" stroke-linejoin="miter" /></g><g id="white-queen" class="white queen" fill="#fff" fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12a2 2 0 1 1-4 0 2 2 0 1 1 4 0zM24.5 7.5a2 2 0 1 1-4 0 2 2 0 1 1 4 0zM41 12a2 2 0 1 1-4 0 2 2 0 1 1 4 0zM16 8.5a2 2 0 1 1-4 0 2 2 0 1 1 4 0zM33 9a2 2 0 1 1-4 0 2 2 0 1 1 4 0z" /><path d="M9 26c8.5-1.5 21-1.5 27 0l2-12-7 11V11l-5.5 13.5-3-15-3 15-5.5-14V25L7 14l2 12zM9 26c0 2 1.5 2 2.5 4 1 1.5 1 1 .5 3.5-1.5 1-1.5 2.5-1.5 2.5-1.5 1.5.5 2.5.5 2.5 6.5 1 16.5 1 23 0 0 0 1.5-1 0-2.5 0 0 .5-1.5-1-2.5-.5-2.5-.5-2 .5-3.5 1-2 2.5-2 2.5-4-8.5-1.5-18.5-1.5-27 0z" stroke-linecap="butt" /><path d="M11.5 30c3.5-1 18.5-1 22 0M12 33.5c6-1 15-1 21 0" fill="none" /></g><g id="white-king" class="white king" fill="none" fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22.5 11.63V6M20 8h5" stroke-linejoin="miter" /><path d="M22.5 25s4.5-7.5 3-10.5c0 0-1-2.5-3-2.5s-3 2.5-3 2.5c-1.5 3 3 10.5 3 10.5" fill="#fff" stroke-linecap="butt" stroke-linejoin="miter" /><path d="M11.5 37c5.5 3.5 15.5 3.5 21 0v-7s9-4.5 6-10.5c-4-6.5-13.5-3.5-16 4V27v-3.5c-3.5-7.5-13-10.5-16-4-3 6 5 10 5 10V37z" fill="#fff" /><path d="M11.5 30c5.5-3 15.5-3 21 0m-21 3.5c5.5-3 15.5-3 21 0m-21 3.5c5.5-3 15.5-3 21 0" /></g><g id="black-pawn" class="black pawn"><path d="M22.5 9c-2.21 0-4 1.79-4 4 0 .89.29 1.71.78 2.38C17.33 16.5 16 18.59 16 21c0 2.03.94 3.84 2.41 5.03-3 1.06-7.41 5.55-7.41 13.47h23c0-7.92-4.41-12.41-7.41-13.47 1.47-1.19 2.41-3 2.41-5.03 0-2.41-1.33-4.5-3.28-5.62.49-.67.78-1.49.78-2.38 0-2.21-1.79-4-4-4z" fill="#000" stroke="#000" stroke-width="1.5" stroke-linecap="round" /></g><g id="black-knight" class="black knight" fill="none" fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M 22,10 C 32.5,11 38.5,18 38,39 L 15,39 C 15,30 25,32.5 23,18" style="fill:#000000; stroke:#000000;" /><path d="M 24,18 C 24.38,20.91 18.45,25.37 16,27 C 13,29 13.18,31.34 11,31 C 9.958,30.06 12.41,27.96 11,28 C 10,28 11.19,29.23 10,30 C 9,30 5.997,31 6,26 C 6,24 12,14 12,14 C 12,14 13.89,12.1 14,10.5 C 13.27,9.506 13.5,8.5 13.5,7.5 C 14.5,6.5 16.5,10 16.5,10 L 18.5,10 C 18.5,10 19.28,8.008 21,7 C 22,7 22,10 22,10" style="fill:#000000; stroke:#000000;" /><path d="M 9.5 25.5 A 0.5 0.5 0 1 1 8.5,25.5 A 0.5 0.5 0 1 1 9.5 25.5 z" style="fill:#ececec; stroke:#ececec;" /><path d="M 15 15.5 A 0.5 1.5 0 1 1 14,15.5 A 0.5 1.5 0 1 1 15 15.5 z" transform="matrix(0.866,0.5,-0.5,0.866,9.693,-5.173)" style="fill:#ececec; stroke:#ececec;" /><path d="M 24.55,10.4 L 24.1,11.85 L 24.6,12 C 27.75,13 30.25,14.49 32.5,18.75 C 34.75,23.01 35.75,29.06 35.25,39 L 35.2,39.5 L 37.45,39.5 L 37.5,39 C 38,28.94 36.62,22.15 34.25,17.66 C 31.88,13.17 28.46,11.02 25.06,10.5 L 24.55,10.4 z " style="fill:#ececec; stroke:none;" /></g><g id="black-bishop" class="black bishop" fill="none" fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 36c3.39-.97 10.11.43 13.5-2 3.39 2.43 10.11 1.03 13.5 2 0 0 1.65.54 3 2-.68.97-1.65.99-3 .5-3.39-.97-10.11.46-13.5-1-3.39 1.46-10.11.03-13.5 1-1.354.49-2.323.47-3-.5 1.354-1.94 3-2 3-2zm6-4c2.5 2.5 12.5 2.5 15 0 .5-1.5 0-2 0-2 0-2.5-2.5-4-2.5-4 5.5-1.5 6-11.5-5-15.5-11 4-10.5 14-5 15.5 0 0-2.5 1.5-2.5 4 0 0-.5.5 0 2zM25 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 1 1 5 0z" fill="#000" stroke-linecap="butt" /><path d="M17.5 26h10M15 30h15m-7.5-14.5v5M20 18h5" stroke="#fff" stroke-linejoin="miter" /></g><g id="black-rook" class="black rook" fill="#000" fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 39h27v-3H9v3zM12.5 32l1.5-2.5h17l1.5 2.5h-20zM12 36v-4h21v4H12z" stroke-linecap="butt" /><path d="M14 29.5v-13h17v13H14z" stroke-linecap="butt" stroke-linejoin="miter" /><path d="M14 16.5L11 14h23l-3 2.5H14zM11 14V9h4v2h5V9h5v2h5V9h4v5H11z" stroke-linecap="butt" /><path d="M12 35.5h21M13 31.5h19M14 29.5h17M14 16.5h17M11 14h23" fill="none" stroke="#fff" stroke-width="1" stroke-linejoin="miter" /></g><g id="black-queen" class="black queen" fill="#000" fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><g fill="#000" stroke="none"><circle cx="6" cy="12" r="2.75" /><circle cx="14" cy="9" r="2.75" /><circle cx="22.5" cy="8" r="2.75" /><circle cx="31" cy="9" r="2.75" /><circle cx="39" cy="12" r="2.75" /></g><path d="M9 26c8.5-1.5 21-1.5 27 0l2.5-12.5L31 25l-.3-14.1-5.2 13.6-3-14.5-3 14.5-5.2-13.6L14 25 6.5 13.5 9 26zM9 26c0 2 1.5 2 2.5 4 1 1.5 1 1 .5 3.5-1.5 1-1.5 2.5-1.5 2.5-1.5 1.5.5 2.5.5 2.5 6.5 1 16.5 1 23 0 0 0 1.5-1 0-2.5 0 0 .5-1.5-1-2.5-.5-2.5-.5-2 .5-3.5 1-2 2.5-2 2.5-4-8.5-1.5-18.5-1.5-27 0z" stroke-linecap="butt" /><path d="M11 38.5a35 35 1 0 0 23 0" fill="none" stroke-linecap="butt" /><path d="M11 29a35 35 1 0 1 23 0M12.5 31.5h20M11.5 34.5a35 35 1 0 0 22 0M10.5 37.5a35 35 1 0 0 24 0" fill="none" stroke="#fff" /></g><g id="black-king" class="black king" fill="none" fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22.5 11.63V6" stroke-linejoin="miter" /><path d="M22.5 25s4.5-7.5 3-10.5c0 0-1-2.5-3-2.5s-3 2.5-3 2.5c-1.5 3 3 10.5 3 10.5" fill="#000" stroke-linecap="butt" stroke-linejoin="miter" /><path d="M11.5 37c5.5 3.5 15.5 3.5 21 0v-7s9-4.5 6-10.5c-4-6.5-13.5-3.5-16 4V27v-3.5c-3.5-7.5-13-10.5-16-4-3 6 5 10 5 10V37z" fill="#000" /><path d="M20 8h5" stroke-linejoin="miter" /><path d="M32 29.5s8.5-4 6.03-9.65C34.15 14 25 18 22.5 24.5l.01 2.1-.01-2.1C20 18 9.906 14 6.997 19.85c-2.497 5.65 4.853 9 4.853 9M11.5 30c5.5-3 15.5-3 21 0m-21 3.5c5.5-3 15.5-3 21 0m-21 3.5c5.5-3 15.5-3 21 0" stroke="#fff" /></g></svg>
+<header>
+  <div class="bar">
+    <div class="logo">
+      <svg class="pion" viewBox="0 0 45 45" aria-hidden="true"><use href="#black-pawn"></use></svg>
+      Entraîneur d'ouvertures
+    </div>
+    <button id="btn-sync" class="b-sync" type="button" data-etat="off" aria-haspopup="dialog"
+      title="Synchronisation GitHub non configurée sur cet appareil.">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M7 18.5h10.6a4.1 4.1 0 0 0 .5-8.17A6.1 6.1 0 0 0 6.3 9.4 4.6 4.6 0 0 0 7 18.5z"/>
+        <path class="fl" d="M12 15.6V10.4m-2.3 2.2L12 10.3l2.3 2.3"/></svg>
+      <span class="sync-txt">Synchro</span></button>
+    <select id="sel-langue" class="b-langue" aria-label="Langue · Language" title="Langue · Language"></select>
+    <nav role="tablist">
+      <button role="tab" data-onglet="jour" aria-selected="true">Aujourd'hui</button>
+      <button role="tab" data-onglet="ouvertures" aria-selected="false">Ouvertures<span class="pastille" id="badge-ouv" hidden>0</span></button>
+      <button role="tab" data-onglet="entrainement" aria-selected="false">Entraînement<span class="pastille" id="badge-ent" hidden>0</span></button>
+      <button role="tab" data-onglet="editeur" aria-selected="false">Éditeur<span class="pastille" id="badge-edit" hidden>0</span></button>
+      <button role="tab" data-onglet="progression" aria-selected="false">Progression</button>
+      <button id="btn-son" class="b-son" aria-pressed="true" aria-label="Son activé"
+        title="Son activé — cliquer pour couper">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path class="corps" d="M11.4 4.9 6.3 8.9H2.7v6.2h3.6l5.1 4z"/>
+          <g class="ondes">
+            <path pathLength="1" d="M15.2 9.2a4.1 4.1 0 0 1 0 5.6"/>
+            <path pathLength="1" d="M18 6.4a8 8 0 0 1 0 11.2"/>
+          </g>
+          <g class="barre">
+            <path pathLength="1" d="M16.4 9.6 21.3 14.5"/>
+            <path pathLength="1" d="M21.3 9.6 16.4 14.5"/>
+          </g>
+        </svg></button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div id="bandeau-sauvegarde" class="bandeau-sauvegarde" role="alert" hidden></div>
+  <div id="bandeau-degrade" class="bandeau" hidden>
+    <strong>Mode simplifié.</strong> La page est ouverte sans le serveur local : l'analyse Stockfish
+    (précision, gaffes) est désactivée et tes données sont gardées dans le navigateur.
+    Ferme cet onglet et lance le serveur avec le lanceur de ton système (voir le README) pour tout activer.
+  </div>
+
+  <!-- =============================== AUJOURD'HUI =============================== -->
+  <section class="panneau actif" id="p-jour">
+    <h2 id="titre-jour">Tes parties</h2>
+    <p class="sous">Import direct depuis chess.com. Les parties contre les bots Coach et les parties par
+      correspondance sont écartées automatiquement.</p>
+
+    <div class="carte accueil-nouveau" id="accueil-nouveau" hidden>
+      <h3>Bienvenue</h3>
+      <p class="sous">L’entraîneur importe tes parties chess.com, les analyse avec Stockfish et te fait
+        réviser tes ouvertures. Trois réglages pour commencer, modifiables ensuite.</p>
+      <div class="ligne-ctrl">
+        <label class="champ">Ton pseudo chess.com
+          <input id="acc-pseudo" size="22" required autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+        <label class="champ">Ton niveau
+          <select id="acc-niveau"></select></label>
+      </div>
+      <fieldset class="acc-reps">
+        <legend>Répertoires d’exemple, chacun avec sa leçon</legend>
+        <div id="acc-reps"></div>
+      </fieldset>
+      <div class="ligne-ctrl" style="margin-bottom:6px">
+        <button class="b" id="acc-ok">Commencer</button>
+        <button class="b g" id="acc-sync">J’ai déjà mes données sur un autre appareil</button>
+      </div>
+    </div>
+
+    <div class="carte">
+      <div class="ligne-ctrl">
+        <label class="champ">Pseudo chess.com
+          <input id="pseudo" size="22" placeholder="ton pseudo" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+        <label class="champ">Depuis le
+          <input id="depuis" type="date"></label>
+        <label class="champ">Analyse moteur
+          <select id="profondeur">
+            <option value="60000">Rapide</option>
+            <option value="150000" selected>Normale</option>
+            <option value="400000">Précise (lent)</option>
+          </select></label>
+        <label class="champ">Niveau
+          <select id="niveau"></select></label>
+        <button class="b" id="btn-import">Importer et analyser</button>
+        <button class="b g" id="btn-stop" hidden>Arrêter</button>
+      </div>
+      <div class="progress" id="prog" hidden><i></i></div>
+      <div id="journal" hidden></div>
+    </div>
+
+    <details class="collection" id="collection-brillants" hidden>
+      <summary><span class="coll-titre">Collection de coups brillants</span><span class="coll-nb" id="coll-nb"></span></summary>
+      <p class="sous coll-sous">Tes sacrifices qui marchent, dans toutes tes parties analysées. Clique sur un échiquier pour
+        retrouver le coup dans le bilan de sa partie.</p>
+      <div id="coll-grille"></div>
+    </details>
+
+    <div id="jour-vide" class="vide">Aucune partie importée pour l'instant. Choisis une date et clique sur
+      « Importer et analyser ».</div>
+
+    <div id="jour-contenu" hidden>
+      <h3 style="margin:0 0 10px" id="titre-indicateurs">Ta journée</h3>
+      <div class="grille" id="indicateurs"></div>
+      <h3 style="margin:26px 0 10px" id="titre-parties">Les parties</h3>
+      <div id="liste-parties"></div>
+      <div class="ligne-ctrl" id="zone-plus" style="margin-top:14px" hidden>
+        <button class="b g" id="btn-plus">Voir 2 jours de plus</button>
+        <button class="b g" id="btn-tout">Tout afficher</button>
+      </div>
+      <h3 style="margin:30px 0 10px" id="titre-gaffes">Tes gaffes du jour</h3>
+      <div id="liste-gaffes"></div>
+    </div>
+  </section>
+
+  <!-- =============================== OUVERTURES =============================== -->
+  <section class="panneau" id="p-ouvertures">
+    <div id="ouv-accueil">
+      <div id="ouv-migration"></div>
+      <div class="ouv-tete">
+        <div>
+          <h2>Tes répertoires</h2>
+          <p class="sous">Un répertoire, c'est un nom, une couleur et un arbre de coups : les tiens, et les
+            réponses adverses que tu as préparées. Tu le construis dans l'éditeur, tu t'entraînes dessus ici
+            ou dans Entraînement.</p>
+        </div>
+        <button class="b" id="btn-creer-rep">+ Créer un répertoire</button>
+      </div>
+      <div class="carte creer-rep" id="form-creer-rep" hidden>
+        <h3>Nouveau répertoire</h3>
+        <label class="champ" for="creer-nom">Nom
+          <input type="text" id="creer-nom" maxlength="60" placeholder="Défense Caro-Kann, Système de Londres…"></label>
+        <fieldset class="creer-camp">
+          <legend>Tu joues</legend>
+          <label class="choix-camp"><input type="radio" name="creer-camp" value="w"><span class="rep-pion w" aria-hidden="true"></span> les blancs</label>
+          <label class="choix-camp"><input type="radio" name="creer-camp" value="b"><span class="rep-pion b" aria-hidden="true"></span> les noirs</label>
+        </fieldset>
+        <div class="ligne-ctrl" style="margin:12px 0 0">
+          <button class="b" id="creer-ok">Créer et ouvrir l'éditeur</button>
+          <button class="b g" id="creer-annuler">Annuler</button>
+          <span class="sous" id="creer-etat" role="status"></span>
+        </div>
+      </div>
+      <div id="liste-reps"></div>
+
+      <h2 style="margin-top:38px">Leçons</h2>
+      <p class="sous">Des leçons complètes sur tes ouvertures : le par cœur, la philosophie, les pièges,
+        les exceptions, et quoi faire quand l'adversaire sort des sentiers. Les échiquiers s'animent coup par coup.</p>
+      <div id="liste-lecons"></div>
+
+      <h2 style="margin-top:38px">Correctifs d'ouverture</h2>
+      <p class="sous">Chaque coup de tes parties est comparé à tes répertoires. Sortir du répertoire n'est pas
+        une faute : une erreur, c'est un coup hors répertoire <em>et</em> mauvais. Les deux sont listés
+        ici, séparément.</p>
+      <div id="ecarts"></div>
+    </div>
+    <div id="ouv-lecon" hidden></div>
+  </section>
+
+  <!-- =============================== ENTRAINEMENT =============================== -->
+  <section class="panneau" id="p-entrainement">
+    <h2>Entraînement</h2>
+    <p class="sous">Quatre chantiers : tes erreurs d'ouverture, tes gaffes en jeu, tes répertoires et les quiz des leçons.</p>
+
+    <div id="ent-accueil">
+
+      <section class="bloc-ent" id="bloc-ouv">
+        <div class="bloc-h">
+          <h3>1 · Erreurs d'ouverture</h3>
+          <span class="tag red" id="cpt-ouv">0</span>
+        </div>
+        <p class="sous">Les coups qui sortaient de ton répertoire <em>et</em> qui étaient mauvais.
+          Sortir du livre n'est pas une faute : ceux-là en sont une. Une position quitte la liste quand
+          tu l'as retrouvée cinq fois de suite sans faute ni indice.</p>
+        <div class="ligne-ctrl">
+          <button class="b" id="btn-exo-ouv">Réviser</button>
+          <button class="b g" id="btn-liste-ouv">Voir la liste</button>
+        </div>
+        <div id="liste-exo-ouv" hidden></div>
+      </section>
+
+      <section class="bloc-ent" id="bloc-gaffes">
+        <div class="bloc-h">
+          <h3>2 · Gaffes en jeu</h3>
+          <span class="tag red" id="cpt-gaffes">0</span>
+        </div>
+        <p class="sous">Les positions où tu étais devant, ou perdant de peu, et où tu as laissé filer
+          au moins trois points. Retrouve le coup que tu n'as pas joué ; cinq fois de suite sans faute
+          ni indice, et la position quitte la liste.</p>
+        <div class="ligne-ctrl">
+          <button class="b" id="btn-exo-gaffes">Réviser</button>
+          <button class="b g" id="btn-liste-gaffes">Voir la liste</button>
+        </div>
+        <div id="liste-exo-gaffes" hidden></div>
+      </section>
+
+      <section class="bloc-ent" id="bloc-rep">
+        <div class="bloc-h">
+          <h3>3 · Entraîner les ouvertures</h3>
+          <span class="tag" id="cpt-rep">0</span>
+        </div>
+        <p class="sous">Tes répertoires, en entier ou seulement ce qui est dû, et les positions que tu as
+          ratées. À chaque position, tu dois retrouver tous tes coups ; l'adversaire joue ses réponses préparées.
+          Le menu « Réviser » limite la révision à tes premiers coups (par exemple jusqu'à ton 3e coup).</p>
+        <div id="rep-tout"></div>
+      </section>
+
+      <section class="bloc-ent" id="bloc-quiz-ouv">
+        <div class="bloc-h">
+          <h3>4 · Quiz d'ouverture</h3>
+          <span class="tag" id="cpt-quiz-ouv">0</span>
+        </div>
+        <p class="sous">Les quiz des leçons : la position se rejoue depuis le début, puis tu trouves tes coups.
+          Une erreur affiche l'explication de la leçon. Un quiz réussi revient plus tard ; un quiz raté revient demain.</p>
+        <div id="quiz-ouv-liste"></div>
+      </section>
+    </div>
+
+    <div id="ent-drill" hidden>
+      <div class="duo">
+        <div>
+          <svg class="plateau" id="plateau" viewBox="0 0 800 800"></svg>
+          <div class="ligne-ctrl" style="margin-top:14px">
+            <button class="b g" id="btn-indice">Indice</button>
+            <button class="b g" id="btn-recommencer">Recommencer</button>
+            <button class="b g" id="btn-quitter">Terminer</button>
+          </div>
+        </div>
+        <div>
+          <h3 id="drill-titre"></h3>
+          <p class="sous" id="drill-sous"></p>
+          <div class="fil" id="drill-fil"></div>
+          <div id="drill-msg"></div>
+          <div id="drill-idee"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =============================== PROGRESSION =============================== -->
+
+  <section class="panneau" id="p-editeur">
+    <h2>Éditeur de répertoire</h2>
+    <div class="ed-choix">
+      <label for="ed-rep-choix">Répertoire</label>
+      <select id="ed-rep-choix"></select>
+    </div>
+    <div id="ed-sans-rep" class="vide" hidden>Aucun répertoire ouvert. Va dans Ouvertures et clique sur
+      « Créer un répertoire » : un nom, une couleur, et tu reviens ici.</div>
+    <div id="ed-zone" hidden>
+    <p class="sous">Joue un coup sur l'échiquier pour l'ajouter au répertoire, ou clique sur un coup proposé
+    à droite : les plus joués sur Lichess, ou ceux que recommande Stockfish.</p>
+    <div class="duo">
+      <div>
+        <svg class="plateau" id="plateau-edit" viewBox="0 0 800 800"></svg>
+        <div class="ligne-ctrl nav-ed" style="margin-top:14px">
+          <button class="b" id="ed-debut" title="Retour à la position de départ">&laquo;</button>
+          <button class="b" id="ed-reculer" title="Reculer d'un coup">&lsaquo;</button>
+          <button class="b" id="ed-avancer" title="Avancer d'un coup dans le répertoire">&rsaquo;</button>
+          <button class="b" id="ed-fin" title="Aller au bout de la ligne (arrêt à la première jonction)">&raquo;</button>
+          <span class="sous" id="ed-nav-etat" style="margin:0 0 0 6px"></span>
+        </div>
+        <div class="ligne-ctrl" style="margin-top:10px">
+          <button class="b g" id="ed-tourner">Tourner l'échiquier</button>
+          <button class="b g" id="ed-graphe-btn">Voir le graphe</button>
+          <button class="b g" id="ed-pgn">Exporter en PGN</button>
+          <button class="b g" id="ed-import">Importer un PGN</button>
+          <input type="file" id="ed-fichier" accept=".pgn,text/plain" hidden>
+        </div>
+
+        <div id="ed-fil" class="fil" style="margin-top:12px"></div>
+        <div id="ed-apres-ajout" hidden></div>
+        <div id="ed-zone-import" hidden>
+          <h3 style="margin:20px 0 8px">Importer un répertoire</h3>
+          <p class="sous" style="margin:0 0 8px">Dépose un fichier .pgn ici, choisis-en un,
+          ou colle le texte, en notation anglaise (Nf3, O-O) ou française (Cf3, 0-0). Les coups déjà
+          présents ne sont pas touchés.</p>
+          <textarea id="ed-pgn-texte" rows="5" placeholder="[Event ...]&#10;1. d4 d5 2. c4 ..."></textarea>
+          <div class="ligne-ctrl" style="margin-top:10px">
+            <button class="b g" id="ed-fichier-btn">Choisir un fichier…</button>
+            <button class="b" id="ed-analyser">Analyser</button>
+            <button class="b g" id="ed-annuler-import">Fermer</button>
+          </div>
+          <div id="ed-apercu"></div>
+        </div>
+      </div>
+      <div>
+        <div id="ed-entete"></div>
+        <h3 style="margin:18px 0 4px" id="ed-miens-titre">Tes coups dans cette position</h3>
+        <p class="sous" id="ed-miens-aide" style="margin:0 0 10px"></p>
+        <div id="ed-miens"></div>
+        <h3 style="margin:22px 0 8px">Coups populaires</h3>
+        <div class="ligne-ctrl" style="margin-bottom:10px">
+          <button class="b g actif" id="ed-src-lichess">Lichess</button>
+          <button class="b g" id="ed-src-moi">Tes parties</button>
+          <button class="b g" id="ed-src-retry" hidden>Réessayer Lichess</button>
+        </div>
+        <div id="ed-lichess" class="lichess-etat"></div>
+        <div id="ed-explorateur"></div>
+        <h3 style="margin:22px 0 8px">Recommandés par Stockfish</h3>
+        <div id="ed-stockfish"></div>
+        <h3 style="margin:22px 0 8px">Note sur cette position</h3>
+        <textarea id="ed-note" rows="3" placeholder="Le plan, le piège à éviter…"></textarea>
+      </div>
+    </div>
+    <div id="ed-graphe" hidden></div>
+    </div>
+  </section>
+
+  <section class="panneau" id="p-bilan">
+    <div class="ligne-ctrl" style="margin-bottom:14px">
+      <button class="b g" id="bil-retour">← Retour</button>
+      <button class="b g" id="bil-analyser" hidden>Analyser cette partie</button>
+    </div>
+    <div id="bil-entete"></div>
+    <div id="bil-resume"></div>
+    <div class="bilan-grille">
+      <div class="bil-barre" aria-label="évaluation">
+        <div class="bil-barre-n" id="bil-barre-n"></div>
+        <span class="bil-barre-txt" id="bil-barre-txt">?</span>
+      </div>
+      <div class="bil-centre">
+        <svg class="plateau" id="plateau-bilan" viewBox="0 0 800 800"></svg>
+        <div class="ligne-ctrl bil-ctrl" style="margin-top:14px">
+          <div class="bil-nav">
+            <button class="b g" id="bil-debut" title="Début de la partie" aria-label="Début de la partie">⏮</button>
+            <button class="b g" id="bil-prec" title="Coup précédent (←)" aria-label="Coup précédent">‹</button>
+            <button class="b g" id="bil-suiv" title="Coup suivant (→)" aria-label="Coup suivant">›</button>
+            <button class="b g" id="bil-fin" title="Fin de la partie" aria-label="Fin de la partie">⏭</button>
+          </div>
+          <div class="bil-outils">
+            <button class="b" id="bil-meilleur">Meilleur coup</button>
+            <button class="b g" id="bil-tourner">Tourner</button>
+            <button class="b g" id="bil-radar" aria-pressed="false" title="Entoure les pièces qui se perdent si on les prend">Radar</button>
+          </div>
+        </div>
+        <p class="sous bil-radar-leg" id="bil-radar-leg" hidden>Radar : <i class="pt-r"></i> tes pièces qui se perdent si l’adversaire les prend · <i class="pt-v"></i> les siennes, que tu peux gagner.</p>
+        <div id="bil-case"></div>
+        <p class="sous bil-astuce"><span class="txt-souris">Clique sur une pièce pour voir qui l’attaque et qui la défend. Survole les mots soulignés pour leur définition.</span><span class="txt-tactile">Touche une pièce pour voir qui l’attaque et qui la défend, et un mot souligné pour sa définition.</span></p>
+      </div>
+      <div class="bil-droite">
+        <div id="bil-info"></div>
+        <div id="bil-coups" class="bil-coups"></div>
+        <div id="bil-legende"></div>
+      </div>
+    </div>
+    <div id="bil-lexique"></div>
+    <div id="bil-pop" class="bil-pop" role="tooltip" hidden></div>
+  </section>
+  <section class="panneau" id="p-progression">
+    <h2>Progression</h2>
+    <p class="sous">Un point par jour de jeu, sur quatre indicateurs.</p>
+    <div id="progression"></div>
+  </section>
+</main>
+
+<script src="i18n/i18n.js"></script>
+<script src="i18n/en.js"></script>
+<script src="son.js"></script>
+<script src="vendor/chess.js"></script>
+<script src="lichess.js"></script>
+<script src="repertoire.js"></script>
+<script src="explications.js"></script>
+<script src="bilan.js"></script>
+<script src="reps-initiaux.js"></script>
+<script src="lecons.js"></script>
+<script src="lecons.en.js"></script>
+<script src="ouvertures.js"></script>
+<dialog id="dlg-sync" class="dlg-sync" aria-labelledby="sync-titre">
+  <form method="dialog" class="sync-form">
+    <h3 id="sync-titre">Synchronisation GitHub</h3>
+    <p class="sous">Tes appareils (ordinateur, téléphone) se retrouvent dans un dépôt GitHub <strong>privé</strong> :
+      à l'ouverture, quelques secondes après chaque modification et quand l'app passe en arrière-plan.
+      Chaque envoi garde une version : GitHub conserve tout l'historique.</p>
+    <p id="sync-etat" class="sync-etat" role="status"></p>
+    <label class="champ">Dépôt
+      <input id="sync-depot" placeholder="ton-pseudo/entraineur-donnees" autocomplete="off"
+        autocapitalize="off" spellcheck="false"></label>
+    <label class="champ">Jeton d'accès
+      <input id="sync-jeton" type="password" autocomplete="off" autocapitalize="off" spellcheck="false"
+        placeholder="github_pat_…"></label>
+    <div class="sync-boutons">
+      <button type="button" class="b" id="sync-enregistrer">Enregistrer et synchroniser</button>
+      <button type="button" class="b g" id="sync-maintenant" hidden>Synchroniser maintenant</button>
+      <button type="button" class="b g" id="sync-oublier" hidden>Déconnecter cet appareil</button>
+      <button type="submit" class="b g">Fermer</button>
+    </div>
+    <details class="sync-aide">
+      <summary>Créer le dépôt et le jeton (une seule fois)</summary>
+      <ol>
+        <li>Sur GitHub, <a href="https://github.com/new" target="_blank" rel="noopener">crée un dépôt</a> :
+          nom <span class="mv">entraineur-donnees</span>, coche <strong>Private</strong>, puis
+          <strong>Create repository</strong>.</li>
+        <li><a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Crée un
+          jeton</a> (Fine-grained token) : <strong>Repository access</strong> → <em>Only select repositories</em> →
+          ton dépôt ; <strong>Permissions</strong> → <em>Contents</em> → <em>Read and write</em> ; expiration : la
+          plus longue proposée. Quand il expire, l'indicateur passe en erreur : il suffit d'en coller un nouveau ici.</li>
+        <li>Copie le jeton (il commence par <span class="mv">github_pat_</span>), colle-le ci-dessus avec le nom du
+          dépôt, puis <strong>Enregistrer et synchroniser</strong>.</li>
+        <li>Fais la même chose sur ton autre appareil, avec le même dépôt et le même jeton.</li>
+      </ol>
+      <p>Le jeton reste sur chaque appareil : il n'est jamais envoyé dans le dépôt. Un dépôt public est refusé,
+        parce que tes parties et ton jeton Lichess y seraient visibles de tous.</p>
+    </details>
+  </form>
+</dialog>
+
+<script src="sync.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
