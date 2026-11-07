@@ -132,7 +132,9 @@ function enteteBilan() {
     el('div', { class: 'haut', style: 'margin-bottom:4px' },
       el('span', { class: 'tag ' + r[0] }, r[1]),
       el('span', { class: 'tag' }, p.couleur === 'w' ? tx('tu jouais les blancs') : tx('tu jouais les noirs')),
-      el('span', { class: 'tag' }, String(p.eloAdv)),
+      el('span', { class: 'tag' }, p.bot ? tx('bot {0}', [p.eloAdv]) : String(p.eloAdv || '?')),
+      siteDe(p) === 'lichess' && !p.bot ? el('span', { class: 'tag' }, 'Lichess') : null,
+      p.bot && typeof nomTheme === 'function' ? el('span', { class: 'tag grn' }, nomTheme(p)) : null,
       tagPrecision(p),
       el('span', { class: 'quand' },
         d.toLocaleDateString(I18N.locale, { weekday: 'long', day: 'numeric', month: 'long' })
@@ -140,8 +142,10 @@ function enteteBilan() {
     el('p', { class: 'sous', style: 'margin:0' },
       tx('{0} demi-coups · {1} de réflexion', [B.M.coups.length, mmss(p.stat.tempsUtilise || 0)])
       + (p.moteur ? tx(' · {0} cp de perte moyenne · {1} gaffe(s)', [p.moteur.cpl, gaffesRetenues(p).length]) : '')),
-    el('p', { style: 'margin:6px 0 0' },
-      el('a', { href: p.url, target: '_blank', rel: 'noopener', class: 'sous' }, tx('ouvrir sur chess.com →'))));
+    p.bot ? el('p', { class: 'sous', style: 'margin:6px 0 0' }, tx('Partie d’entraînement contre le bot : elle ne compte pas dans tes indicateurs.'))
+      : el('p', { style: 'margin:6px 0 0' },
+        el('a', { href: siteDe(p) === 'lichess' && p.couleur === 'b' ? p.url + '/black' : p.url, target: '_blank', rel: 'noopener',
+          class: 'sous' }, siteDe(p) === 'lichess' ? tx('ouvrir sur Lichess →') : tx('ouvrir sur chess.com →'))));
   $('#bil-analyser').hidden = !!B.evals;
 }
 
@@ -156,6 +160,10 @@ function resumeBilan() {
   const det = el('details', { class: 'bil-resume' }, el('summary', {}, tx('Résumé de la partie')));
   det.open = ouvert !== false;
   z.append(det);
+  /* une partie contre le bot : d'abord ce que tu voulais travailler */
+  if (B.p.bot && typeof bilanTheme === 'function') {
+    det.append(el('h3', { class: 'bil-h' }, tx('Ce que tu voulais travailler')), bilanTheme(B));
+  }
   if (!M.aEvals) {
     det.append(el('p', { class: 'sous' }, B.analyse
       ? tx('Analyse en cours : le résumé apparaît dès que le moteur a fini.')

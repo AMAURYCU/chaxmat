@@ -30,6 +30,7 @@
       <button role="tab" data-onglet="jour" aria-selected="true">Aujourd'hui</button>
       <button role="tab" data-onglet="ouvertures" aria-selected="false">Ouvertures<span class="pastille" id="badge-ouv" hidden>0</span></button>
       <button role="tab" data-onglet="entrainement" aria-selected="false">Entraînement<span class="pastille" id="badge-ent" hidden>0</span></button>
+      <button role="tab" data-onglet="jouer" aria-selected="false">Jouer</button>
       <button role="tab" data-onglet="editeur" aria-selected="false">Éditeur<span class="pastille" id="badge-edit" hidden>0</span></button>
       <button role="tab" data-onglet="progression" aria-selected="false">Progression</button>
       <button id="btn-son" class="b-son" aria-pressed="true" aria-label="Son activé"
@@ -60,16 +61,19 @@
   <!-- =============================== AUJOURD'HUI =============================== -->
   <section class="panneau actif" id="p-jour">
     <h2 id="titre-jour">Tes parties</h2>
-    <p class="sous">Import direct depuis chess.com. Les parties contre les bots Coach et les parties par
-      correspondance sont écartées automatiquement.</p>
+    <p class="sous">Import direct depuis chess.com et Lichess. Les parties contre des bots ou l’ordinateur et
+      les parties par correspondance sont écartées automatiquement.</p>
 
     <div class="carte accueil-nouveau" id="accueil-nouveau" hidden>
       <h3>Bienvenue</h3>
-      <p class="sous">L’entraîneur importe tes parties chess.com, les analyse avec Stockfish et te fait
-        réviser tes ouvertures. Trois réglages pour commencer, modifiables ensuite.</p>
+      <p class="sous">L’entraîneur importe tes parties chess.com et Lichess, les analyse avec Stockfish et te
+        fait réviser tes ouvertures. Trois réglages pour commencer, modifiables ensuite. Remplis au moins un
+        des deux pseudos.</p>
       <div class="ligne-ctrl">
         <label class="champ">Ton pseudo chess.com
-          <input id="acc-pseudo" size="22" required autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+          <input id="acc-pseudo" size="22" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+        <label class="champ">Ton pseudo Lichess
+          <input id="acc-pseudo-lichess" size="22" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
         <label class="champ">Ton niveau
           <select id="acc-niveau"></select></label>
       </div>
@@ -87,6 +91,8 @@
       <div class="ligne-ctrl">
         <label class="champ">Pseudo chess.com
           <input id="pseudo" size="22" placeholder="ton pseudo" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+        <label class="champ">Pseudo Lichess
+          <input id="pseudo-lichess" size="22" placeholder="ton pseudo" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
         <label class="champ">Depuis le
           <input id="depuis" type="date"></label>
         <label class="champ">Analyse moteur
@@ -362,6 +368,67 @@
     <div id="bil-lexique"></div>
     <div id="bil-pop" class="bil-pop" role="tooltip" hidden></div>
   </section>
+  <!-- =============================== JOUER =============================== -->
+  <section class="panneau" id="p-jouer">
+    <div id="jouer-accueil">
+      <h2>Jouer contre le bot</h2>
+      <p class="sous">Écris ce que tu veux travailler : le bot joue cette ouverture à ton niveau, puis le bilan de la
+        partie se concentre dessus. Ces parties restent à part : elles ne comptent pas dans tes indicateurs.</p>
+      <div class="carte jouer-carte">
+        <label class="champ champ-large">Ce que tu veux travailler
+          <input id="jouer-texte" maxlength="160" autocomplete="off" spellcheck="false"
+            placeholder="J’aimerais travailler la défense française"></label>
+        <div id="jouer-compris" class="jouer-compris" role="status" aria-live="polite"></div>
+        <div class="ligne-ctrl" style="margin:16px 0 8px">
+          <label class="champ">Tu joues
+            <select id="jouer-camp">
+              <option value="auto">selon l’ouverture</option>
+              <option value="w">les blancs</option>
+              <option value="b">les noirs</option>
+            </select></label>
+          <label class="champ">Pendule
+            <select id="jouer-pendule">
+              <option value="">sans pendule</option>
+              <option value="300+0">5 min</option>
+              <option value="600+0">10 min</option>
+              <option value="900+10">15 min + 10 s</option>
+              <option value="1800+0">30 min</option>
+            </select></label>
+          <label class="champ champ-elo">Force du bot <output id="jouer-elo-val">≈ 450</output>
+            <input id="jouer-elo" type="range" min="200" max="2000" step="25" value="450"></label>
+        </div>
+        <p class="sous" id="jouer-elo-aide" style="margin:0 0 16px"></p>
+        <div class="ligne-ctrl" style="margin-bottom:0">
+          <button class="b" id="jouer-go">Lancer la partie</button>
+          <span class="sous" id="jouer-etat" role="status" style="margin:0"></span>
+        </div>
+      </div>
+      <h3 style="margin:28px 0 10px">Tes parties contre le bot</h3>
+      <div id="jouer-liste"></div>
+    </div>
+    <div id="jouer-partie" hidden>
+      <div class="duo">
+        <div>
+          <div class="pendule" id="pendule-haut"></div>
+          <svg class="plateau" id="plateau-jeu" viewBox="0 0 800 800"></svg>
+          <div class="pendule" id="pendule-bas"></div>
+          <div class="ligne-ctrl" style="margin-top:14px">
+            <button class="b g" id="jeu-indice">Coup de la ligne</button>
+            <button class="b g" id="jeu-tourner">Tourner</button>
+            <button class="b g" id="jeu-abandon">Abandonner</button>
+          </div>
+        </div>
+        <div>
+          <h3 id="jeu-titre" style="margin:0 0 4px"></h3>
+          <p class="sous" id="jeu-sous" style="margin:0 0 12px"></p>
+          <div id="jeu-etat" class="msg" role="status"></div>
+          <div id="jeu-livre"></div>
+          <div class="fil" id="jeu-coups"></div>
+          <div id="jeu-fin"></div>
+        </div>
+      </div>
+    </div>
+  </section>
   <section class="panneau" id="p-progression">
     <h2>Progression</h2>
     <p class="sous">Un point par jour de jeu, sur quatre indicateurs.</p>
@@ -381,6 +448,8 @@
 <script src="lecons.js"></script>
 <script src="lecons.en.js"></script>
 <script src="ouvertures.js"></script>
+<script src="bot.js"></script>
+<script src="jouer.js"></script>
 <dialog id="dlg-sync" class="dlg-sync" aria-labelledby="sync-titre">
   <form method="dialog" class="sync-form">
     <h3 id="sync-titre">Synchronisation GitHub</h3>

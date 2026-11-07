@@ -344,6 +344,7 @@ const Fusion = {
     exos: (x) => [(x.reussites || 0) + (x.echecs || 0), x.dernier || x.vuLe || '', x.vues || 0],
     quizOuv: (x) => [(x.ok || 0) + (x.ko || 0), x.dernier || ''],
     parties: (x) => [x.moteur ? 1 : 0, JSON.stringify(x).length],
+    partiesBot: (x) => [x.moteur ? 1 : 0, JSON.stringify(x).length],
     jours: (x) => [x.parties || 0, x.coups || 0],
     cartes: (x) => [JSON.stringify(x).length],
   },

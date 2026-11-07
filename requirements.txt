@@ -1,0 +1,57 @@
+# Dependances de l'Entraineur d'ouvertures
+# Chess Coach dependencies
+#
+# Le seul paquet pip sert au skill d'analyse (skills/).
+# The only pip package is for the analysis skill (skills/).
+#
+#     pip install -r requirements.txt
+
+chess>=1.10
+
+# ----------------------------------------------------------------------------
+# Hors pip / Not installed by pip
+# ----------------------------------------------------------------------------
+#
+# APPLICATION (entraineur/)
+#
+# Python 3.7 ou plus recent, sans paquet supplementaire : serveur.py n'utilise
+# que la bibliotheque standard (http.server, socketserver, json, socket,
+# threading, webbrowser, urllib). Les lanceurs le verifient et disent quoi
+# installer.
+# Python 3.7 or later, with no extra package: serveur.py only uses the
+# standard library. The launchers check it and tell you what to install.
+#
+# Un navigateur recent : Chrome ou Edge 91+, Firefox 98+, Safari 16.4+ (macOS
+# et iOS). Stockfish y tourne en WebAssembly SIMD.
+# A recent browser: Chrome or Edge 91+, Firefox 98+, Safari 16.4+ (macOS and
+# iOS). Stockfish runs in it as WebAssembly SIMD.
+#
+# Une connexion Internet, pour importer les parties (API chess.com et Lichess)
+# et charger les polices.
+# An Internet connection, to import games (chess.com and Lichess APIs) and
+# load the fonts.
+#
+# Stockfish.js 18 et chess.js 1.4 sont fournis dans entraineur/app/vendor/.
+# Stockfish.js 18 and chess.js 1.4 are bundled in entraineur/app/vendor/.
+#
+# SKILL D'ANALYSE / ANALYSIS SKILL (skills/analyse-partie-echecs/)
+#
+# Python 3.7 ou plus recent, et chess (ci-dessus).
+# Python 3.7 or later, and chess (above).
+#
+# Stockfish, le moteur UCI : analyser.py le cherche dans la variable
+# STOCKFISH, puis dans le PATH.
+# Stockfish, the UCI engine: analyser.py looks for it in the STOCKFISH
+# variable, then in the PATH.
+#     macOS          : brew install stockfish
+#     Debian, Ubuntu : sudo apt install stockfish
+#     Windows        : https://stockfishchess.org/download/
+#
+# APPLI ANDROID / ANDROID APP (android/)
+#
+# Construction sous Linux, avec Python 3 :
+# Building on Linux, with Python 3:
+#     sudo apt install openjdk-17-jdk-headless aapt dalvik-exchange zipalign apksigner android-sdk-platform-23
+#
+# Sur le telephone : Android 7.0 ou plus (API 24) et Android System WebView 91+.
+# On the phone: Android 7.0 or later (API 24) and Android System WebView 91+.

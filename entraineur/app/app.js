@@ -1,6 +1,6 @@
 /* Entraîneur d'ouvertures — application locale.
    Tout tourne dans le navigateur : chess.js pour les règles, Stockfish (WebAssembly)
-   pour l'analyse, l'API publique de chess.com pour l'import. */
+   pour l'analyse, les API publiques de chess.com et de Lichess pour l'import. */
 'use strict';
 
 const $ = (s, r) => (r || document).querySelector(s);
@@ -90,7 +90,7 @@ const Chargement = {
 
 /* ========================================================== état & stockage */
 const S = {
-  d: { reglages: { pseudo: '' }, parties: {}, jours: {}, cartes: {} },
+  d: { reglages: { pseudo: '', pseudoLichess: '' }, parties: {}, jours: {}, cartes: {} },
   moteur: null, stop: false, joursAffiches: 1,
 };
 
@@ -114,6 +114,7 @@ async function charger() {
     }
   }
   S.d.reglages = S.d.reglages || { pseudo: '' };
+  if (S.d.reglages.pseudoLichess === undefined) S.d.reglages.pseudoLichess = '';
   /* Le bouton du son a longtemps affiché l'inverse de son état, et un clic
      dessus vidait la page (il recevait aussi le gestionnaire des onglets).
      Un réglage « coupé » hérité de cette époque ne traduit donc pas un choix.
@@ -320,22 +321,30 @@ function moisEntre(depuis, jusqua) {
   while (d <= f) { out.push(`${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`); d.setMonth(d.getMonth() + 1); }
   return out.length ? out : [`${f.getFullYear()}/${String(f.getMonth() + 1).padStart(2, '0')}`];
 }
+/* Les coups d'une partie, rejoués depuis le début. `pendule(i)` : le temps
+   restant après le demi-coup i, en secondes (null si inconnu). */
+function rejouer(sans, pendule) {
+  const b = new Chess(); const coups = [];
+  for (const san of sans) {
+    const fenAvant = b.fen();
+    let mv; try { mv = b.move(san); } catch (e) { break; }
+    coups.push({
+      san: mv.san, from: mv.from, to: mv.to, captured: mv.captured || null,
+      fenAvant, fenApres: b.fen(), trait: mv.color, clk: pendule(coups.length, b.fen()),
+      numero: Math.floor(coups.length / 2) + 1,
+    });
+  }
+  return coups;
+}
+/* site d'une partie : chess.com pour toutes celles importées avant Lichess */
+const siteDe = (p) => p.site || (/lichess\.org/.test(p.url || '') ? 'lichess' : 'chesscom');
 function lirePgn(g, pseudo) {
   const c = new Chess();
   try { c.loadPgn(g.pgn); } catch (e) { return null; }
   const cm = {}; for (const x of c.getComments()) cm[x.fen] = x.comment;
   const blanc = g.white.username.toLowerCase() === pseudo.toLowerCase();
   const moi = blanc ? 'w' : 'b';
-  const b = new Chess(); const coups = [];
-  for (const h of c.history({ verbose: true })) {
-    const fenAvant = b.fen();
-    let mv; try { mv = b.move(h.san); } catch (e) { break; }
-    coups.push({
-      san: mv.san, from: mv.from, to: mv.to, captured: mv.captured || null,
-      fenAvant, fenApres: b.fen(), trait: mv.color, clk: parseClk(cm[b.fen()]),
-      numero: Math.floor(coups.length / 2) + 1,
-    });
-  }
+  const coups = rejouer(c.history(), (i, fen) => parseClk(cm[fen]));
   const res = g.white.result === 'win' ? '1-0' : (g.black.result === 'win' ? '0-1' : '1/2-1/2');
   const score = res === '1/2-1/2' ? .5 : ((res === '1-0') === blanc ? 1 : 0);
   const base = parseInt((g.time_control || '600').split('+')[0], 10) || 600;
@@ -349,6 +358,96 @@ function lirePgn(g, pseudo) {
     base, coups,
   };
 }
+/* Une partie Lichess (export ndjson). Les pendules viennent du tableau
+   `clocks` (centièmes de seconde, une valeur par demi-coup), plus précis que
+   les [%clk] du PGN, arrondis à la seconde. Comme pour chess.com, le
+   classement retenu est celui d'APRÈS la partie : avant + ratingDiff. */
+function lireLichess(g, pseudo) {
+  const sans = (g.moves || '').split(' ').filter(Boolean);
+  if (!sans.length) return null;
+  const W = g.players.white || {}, N = g.players.black || {};
+  const blanc = ((W.user || {}).id || '') === pseudo.toLowerCase();
+  const moi = blanc ? 'w' : 'b';
+  const cl = Array.isArray(g.clocks) ? g.clocks : [];
+  const coups = rejouer(sans, (i) => (typeof cl[i] === 'number' ? cl[i] / 100 : null));
+  const res = g.winner === 'white' ? '1-0' : (g.winner === 'black' ? '0-1' : '1/2-1/2');
+  const score = res === '1/2-1/2' ? .5 : ((res === '1-0') === blanc ? 1 : 0);
+  const apres = (j) => (typeof j.rating === 'number' ? j.rating + (j.ratingDiff || 0) : null);
+  const lui = blanc ? N : W;
+  return {
+    site: 'lichess', url: 'https://lichess.org/' + g.id, date: Rep.jourLocal(g.lastMoveAt),
+    fin: Math.round(g.lastMoveAt / 1000), couleur: moi, score, resultat: res,
+    adversaire: (lui.user && lui.user.name) || tx('Anonyme'),
+    elo: apres(blanc ? W : N), eloAdv: apres(lui),
+    termination: g.status || '', base: (g.clock && g.clock.initial) || 600, coups,
+  };
+}
+
+/* Un pseudo rempli doit exister : sinon on n'importe rien et on dit lequel
+   est faux. Renvoie null si tout va bien, sinon { champ, message }. */
+async function verifierPseudos(ps) {
+  const essai = async (url) => {
+    try { return await fetch(url, { headers: { Accept: 'application/json' } }); } catch (e) { return null; }
+  };
+  if (ps.chesscom) {
+    const r = await essai(`https://api.chess.com/pub/player/${encodeURIComponent(ps.chesscom.toLowerCase())}`);
+    if (!r) return { champ: 'pseudo', message: tx('chess.com injoignable : pas de réseau ?') };
+    if (r.status === 404) return { champ: 'pseudo', message: tx('Pseudo chess.com introuvable : « {0} ».', [ps.chesscom]) };
+    if (!r.ok) return { champ: 'pseudo', message: tx('chess.com a répondu {0} : réessaie plus tard.', [r.status]) };
+  }
+  if (ps.lichess) {
+    const r = await essai(`https://lichess.org/api/user/${encodeURIComponent(ps.lichess)}`);
+    if (!r) return { champ: 'pseudo-lichess', message: tx('Lichess injoignable : pas de réseau ?') };
+    if (r.status === 404) return { champ: 'pseudo-lichess', message: tx('Pseudo Lichess introuvable : « {0} ».', [ps.lichess]) };
+    if (r.status === 429) return { champ: 'pseudo-lichess', message: tx('Trop de requêtes d’un coup : Lichess limite le débit. Attends une minute puis réessaie.') };
+    if (!r.ok) return { champ: 'pseudo-lichess', message: tx('Lichess a répondu {0} : réessaie plus tard.', [r.status]) };
+    const u = await r.json().catch(() => ({}));
+    if (u.disabled || u.closed) return { champ: 'pseudo-lichess', message: tx('Ce compte Lichess est fermé : « {0} ».', [ps.lichess]) };
+  }
+  return null;
+}
+
+/* Les parties Lichess depuis une date, en ndjson (une partie par ligne),
+   lues au fil de l'eau : Lichess envoie une vingtaine de parties par
+   seconde, on affiche où on en est. */
+async function importerLichess(pseudo, depuis, log) {
+  const t0 = new Date(depuis + 'T00:00:00').getTime();
+  const url = `https://lichess.org/api/games/user/${encodeURIComponent(pseudo)}?since=${t0}`
+    + '&perfType=ultraBullet,bullet,blitz,rapid,classical&clocks=true&evals=false&opening=false&sort=dateAsc';
+  log(tx('Lichess : parties de {0}…', [pseudo]));
+  const r = await fetch(url, { headers: { Accept: 'application/x-ndjson' } });
+  if (r.status === 429) throw new Error(tx('Trop de requêtes d’un coup : Lichess limite le débit. Attends une minute puis réessaie.'));
+  if (!r.ok) throw new Error(tx('Lichess a répondu {0} : réessaie plus tard.', [r.status]));
+  const brut = [];
+  const lire = (l) => { if (l.trim()) { try { brut.push(JSON.parse(l)); } catch (e) { } } };
+  if (r.body && r.body.getReader) {
+    const lecteur = r.body.getReader(), dec = new TextDecoder();
+    let reste = '', dernier = 0;
+    for (;;) {
+      const { done, value } = await lecteur.read();
+      if (done) break;
+      reste += dec.decode(value, { stream: true });
+      const lignes = reste.split('\n'); reste = lignes.pop();
+      lignes.forEach(lire);
+      if (brut.length - dernier >= 50) { dernier = brut.length; log(tx('  {0} parties reçues…', [brut.length])); }
+    }
+    lire(reste + dec.decode());
+  } else {
+    (await r.text()).split('\n').forEach(lire);
+  }
+  const moi = pseudo.toLowerCase();
+  const gardees = brut.filter(g => {
+    if (g.variant !== 'standard' || g.speed === 'correspondence') return false;
+    if (['created', 'started', 'aborted', 'noStart', 'unknownFinish'].includes(g.status)) return false;
+    const W = g.players.white || {}, N = g.players.black || {};
+    const lui = ((W.user || {}).id === moi) ? N : W;
+    if (lui.aiLevel || (lui.user && lui.user.title === 'BOT')) return false;   // l'ordinateur, ou un bot
+    return (g.lastMoveAt || 0) >= t0;
+  });
+  log(tx('Lichess : {0} partie(s) contre des humains depuis le {1}.', [gardees.length, depuis]));
+  return gardees;
+}
+
 async function importerParties(pseudo, depuis, log) {
   const mois = moisEntre(depuis, aujourdhui());
   let brut = [];
@@ -466,6 +565,7 @@ function compacter(p) {
       tempsUtilise: p.stat.tempsUtilise, nbCoups: p.stat.nbCoups,
     },
   };
+  if (p.site) c.site = p.site;
   if (p.moteur) c.moteur = p.moteur;
   return c;
 }
@@ -832,6 +932,7 @@ function onglet(nom) {
      ou l'éditeur pendant une révision ne doit pas la faire perdre. */
   if (nom === 'entrainement' && !(S.drill && !$('#ent-drill').hidden)) vueEntrainement();
   if (nom === 'editeur') vueEditeur();
+  if (nom === 'jouer' && typeof vueJouer === 'function') vueJouer();
   /* chaque onglet s'ouvre en haut de page, pas au défilement du précédent */
   window.scrollTo(0, 0);
   if (nom === 'progression') vueProgression();
@@ -898,7 +999,7 @@ function vueJour(dateISO) {
   const cmpD = (val, ref, inv) => ref === null || ref === undefined ? '' : cmp(val, ref, inv);
   const g = $('#indicateurs'); g.innerHTML = '';
   g.append(
-    statTuile(tx('Parties'), tx('{0}V {1}N {2}D', [V, N, n - V - N]), tx('{0} partie(s), Elo adverse {1}', [n, Math.round(somme(p => p.eloAdv) / n)])),
+    statTuile(tx('Parties'), tx('{0}V {1}N {2}D', [V, N, n - V - N]), tx('{0} partie(s), Elo adverse {1}', [n, (() => { const e = parties.filter(p => p.eloAdv).map(p => p.eloAdv); return e.length ? Math.round(e.reduce((a, b) => a + b, 0) / e.length) : '?'; })()])),
     statTuile(tx('Temps par coup'), tempsCoup === null ? '—' : secs(tempsCoup),
       reperes(ou(D.tempsCoup, secs), R && R.tempsCoup ? secs(R.tempsCoup) : null),
       tempsCoup === null ? '' : cmpD(tempsCoup, D.tempsCoup)),
@@ -947,7 +1048,8 @@ function vueJour(dateISO) {
       el('div', { class: 'haut' },
         el('span', { class: 'tag ' + r[0] }, r[1]),
         el('span', { class: 'tag' }, p.couleur === 'w' ? tx('blancs') : tx('noirs')),
-        el('strong', {}, p.adversaire), el('span', { class: 'tag' }, String(p.eloAdv)),
+        siteDe(p) === 'lichess' ? el('span', { class: 'tag' }, 'Lichess') : null,
+        el('strong', {}, p.adversaire), el('span', { class: 'tag' }, String(p.eloAdv || '?')),
         el('span', { class: 'quand' },
           new Date(p.fin * 1000).toLocaleDateString(I18N.locale, { weekday: 'short', day: 'numeric', month: 'short' })
           + ' · ' + new Date(p.fin * 1000).toLocaleTimeString(I18N.locale, { hour: '2-digit', minute: '2-digit' }))),
@@ -1005,25 +1107,51 @@ function vueJour(dateISO) {
 }
 
 /* ---------- import ---------- */
+/* Un champ en erreur : bulle du navigateur sur le champ, et la même phrase
+   dans le journal d'import quand il est ouvert. */
+function signalerChamp(id, message, log) {
+  const c = $('#' + id);
+  if (log) log(tx('erreur : ') + message);
+  if (!c) return;
+  c.setCustomValidity(message);
+  c.focus();
+  if (c.reportValidity) c.reportValidity();
+}
 async function lancerImport() {
-  const pseudo = $('#pseudo').value.trim();
-  if (!pseudo) { $('#pseudo').focus(); $('#pseudo').reportValidity && $('#pseudo').reportValidity(); return; }
+  const ps = { chesscom: $('#pseudo').value.trim(), lichess: $('#pseudo-lichess').value.trim() };
   const depuis = $('#depuis').value || aujourdhui();
   const noeuds = parseInt($('#profondeur').value, 10);
-  S.d.reglages.pseudo = pseudo; sauver();
   const jr = $('#journal'); jr.hidden = false; jr.textContent = '';
   const log = (m) => { jr.textContent += m + '\n'; jr.scrollTop = jr.scrollHeight; };
   const prog = $('#prog'), barre = $('i', prog);
+  /* Aucun pseudo : erreur. Un seul : on importe ce site-là. */
+  if (!ps.chesscom && !ps.lichess) {
+    signalerChamp('pseudo', tx('Indique au moins un pseudo : chess.com ou Lichess.'), log);
+    return;
+  }
   $('#btn-import').disabled = true; $('#btn-stop').hidden = false; S.stop = false;
 
   try {
-    const brut = await importerParties(pseudo, depuis, log);
+    log(tx('vérification des pseudos…'));
+    const pb = await verifierPseudos(ps);
+    if (pb) { signalerChamp(pb.champ, pb.message, log); return; }
+    S.d.reglages.pseudo = ps.chesscom; S.d.reglages.pseudoLichess = ps.lichess; sauver();
     const nouvelles = [];
-    for (const g of brut) {
-      if (S.d.parties[g.url]) { continue; }
-      const p = lirePgn(g, pseudo);
-      if (p) nouvelles.push(p);
+    if (ps.chesscom) {
+      for (const g of await importerParties(ps.chesscom, depuis, log)) {
+        if (S.d.parties[g.url]) continue;
+        const p = lirePgn(g, ps.chesscom);
+        if (p) nouvelles.push(p);
+      }
     }
+    if (ps.lichess) {
+      for (const g of await importerLichess(ps.lichess, depuis, log)) {
+        if (S.d.parties['https://lichess.org/' + g.id]) continue;
+        const p = lireLichess(g, ps.lichess);
+        if (p) nouvelles.push(p);
+      }
+    }
+    nouvelles.sort((a, b) => a.fin - b.fin);
     log(tx('{0} nouvelle(s) partie(s) à analyser.', [nouvelles.length]));
     for (const p of nouvelles) {
       p.stat = analyseStatique(p);
@@ -1468,7 +1596,7 @@ function collecterExos() {
      une position ajoutée depuis le bilan reste tant que sa partie existe */
   for (const id of Object.keys(S.d.exos)) {
     const x = S.d.exos[id];
-    if (x.manuel && S.d.parties[x.url]) continue;
+    if (x.manuel && (S.d.parties[x.url] || (S.d.partiesBot || {})[x.url])) continue;
     if (!vus.has(id) && !x.serie && !x.reussites) delete S.d.exos[id];
   }
   return S.d.exos;
@@ -2264,13 +2392,22 @@ function coupJoueur(from, to, m) {
 
 /* ---------- classement Elo ----------
    L'Elo stocké dans une partie est celui d'APRÈS la partie (c'est ce que
-   renvoie chess.com dans le PGN), donc la courbe se lit « où j'en étais en
-   sortant de chaque partie ». */
-function carteElo() {
+   renvoie chess.com dans le PGN ; pour Lichess, avant + ratingDiff), donc la
+   courbe se lit « où j'en étais en sortant de chaque partie ».
+   Une courbe par site : les classements chess.com et Lichess ne se comparent
+   pas. Le nom du site n'apparaît que quand les deux sont là. */
+const NOMS_SITES = { chesscom: 'chess.com', lichess: 'Lichess' };
+function cartesElo() {
+  const sites = [...new Set(Object.values(S.d.parties).map(siteDe))].sort();
+  if (!sites.length) return [carteElo('chesscom', null)];
+  return sites.map(st => carteElo(st, sites.length > 1 ? NOMS_SITES[st] : null));
+}
+function carteElo(site, nomSite) {
   const parties = Object.values(S.d.parties)
-    .filter(p => typeof p.elo === 'number' && p.elo > 0)
+    .filter(p => siteDe(p) === site && typeof p.elo === 'number' && p.elo > 0)
     .sort((a, b) => a.fin - b.fin);
-  const carte = el('div', { class: 'carte' }, el('h3', {}, tx('Classement Elo')));
+  const carte = el('div', { class: 'carte' }, el('h3', {},
+    nomSite ? tx('Classement Elo — {0}', [nomSite]) : tx('Classement Elo')));
   if (parties.length < 2) {
     carte.append(el('div', { class: 'vide' }, tx('Pas encore assez de parties importées pour tracer la courbe.')));
     return carte;
@@ -2391,7 +2528,7 @@ function vueProgression() {
   const c = $('#progression'); c.innerHTML = '';
   const jours = Object.entries(S.d.jours).sort((a, b) => a[0] < b[0] ? -1 : 1);
   if (jours.length < 1) { c.append(el('div', { class: 'vide' }, tx('Pas encore de données. Importe tes parties.'))); return; }
-  c.append(carteElo());
+  c.append(...cartesElo());
   const R = refGlissante(null);
   const D = refDepart() || {};
   const series = [
@@ -2527,15 +2664,15 @@ function premierLancement() {
       el('input', { type: 'checkbox', value: r.id, checked: true }), ` ${tx(r.nom)} (${campNom(r.camp)})`));
   }
   $('#acc-ok').onclick = () => {
-    const ps = $('#acc-pseudo').value.trim();
-    if (!ps) { $('#acc-pseudo').focus(); $('#acc-pseudo').reportValidity(); return; }
-    S.d.reglages.pseudo = ps;
+    const ps = $('#acc-pseudo').value.trim(), pl = $('#acc-pseudo-lichess').value.trim();
+    if (!ps && !pl) { signalerChamp('acc-pseudo', tx('Indique au moins un pseudo : chess.com ou Lichess.')); return; }
+    S.d.reglages.pseudo = ps; S.d.reglages.pseudoLichess = pl;
     S.d.reglages.niveau = $('#acc-niveau').value;
     for (const c of $$('#acc-reps input:checked')) ajouterExemple(c.value, true);
     sauver();
     z.hidden = true;
     if (importCarte) importCarte.hidden = false;
-    $('#pseudo').value = ps;
+    $('#pseudo').value = ps; $('#pseudo-lichess').value = pl;
     $('#niveau').value = S.d.reglages.niveau;
     majBadges();
     $('#btn-import').focus();
@@ -2569,11 +2706,15 @@ async function init() {
   migrerOuvertures();
   brancherCreation();
   $('#pseudo').value = S.d.reglages.pseudo || '';
+  $('#pseudo-lichess').value = S.d.reglages.pseudoLichess || '';
+  for (const id of ['pseudo', 'pseudo-lichess', 'acc-pseudo', 'acc-pseudo-lichess']) {
+    const c = $('#' + id); if (c) c.addEventListener('input', () => c.setCustomValidity(''));
+  }
   brancherNiveau();
   /* première fois : on importe le dernier mois, pas seulement aujourd'hui */
   const ilYa30 = new Date(); ilYa30.setDate(ilYa30.getDate() - 30);
   $('#depuis').value = Object.keys(S.d.parties).length ? aujourdhui() : iso(ilYa30);
-  if (!S.d.reglages.pseudo && !Object.keys(S.d.parties).length) premierLancement();
+  if (!S.d.reglages.pseudo && !S.d.reglages.pseudoLichess && !Object.keys(S.d.parties).length) premierLancement();
   /* Sans le filtre, le bouton du son recevait aussi ce gestionnaire : un clic
      appelait onglet(undefined), aucun panneau ne correspondait, et la page
      devenait blanche. */

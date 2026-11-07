@@ -2,7 +2,7 @@
 
 **English** · [Français](README.fr.md)
 
-A local app to improve at chess from your own chess.com games. It imports your games,
+A local app to improve at chess from your own chess.com and Lichess games. It imports your games,
 analyses them with Stockfish right in the browser, explains every move and has you
 review your openings with spaced repetition. It is designed for beginners and club
 players, and works in English or French.
@@ -13,7 +13,7 @@ Everything runs on your computer: no account, no remote server, no ads.
 
 ## What it does
 
-- **Import and analysis**: your chess.com games, analysed move by move with Stockfish
+- **Import and analysis**: your chess.com and Lichess games, analysed move by move with Stockfish
   (WebAssembly, in the browser). You get your blunders, the pieces you left hanging, the
   threats you handled and your accuracy.
 - **Daily indicators**, compared with your starting point and with your form over the
@@ -27,7 +27,11 @@ Everything runs on your computer: no account, no remote server, no ads.
 - **Three example repertoires, each with a full lesson**: Queen's Gambit, French Defence
   and London System. Each lesson has animated boards, traps, plans and more than 100
   quizzes.
-- **Progress** day by day and an Elo curve.
+- **Play against the bot**: write what you want to work on (“the French Defence”,
+  “against the Sicilian”), play it against a bot set to your level, then get a review
+  focused on that opening. The bot makes as many blunders and mistakes as a player of
+  your rating.
+- **Progress** day by day and one Elo curve per site.
 - **Level setting** (beginner, intermediate, advanced), which adjusts how games are
   judged.
 - **Two languages**, English and French, lessons included: the `FR · EN` menu at the top
@@ -39,7 +43,10 @@ Everything runs on your computer: no account, no remote server, no ads.
 
 ## Getting started
 
-You need **Python 3**, with no extra package, and a recent browser.
+You need **Python 3.7** or later, with no extra package, and a recent browser (Chrome or
+Edge 91+, Firefox 98+, Safari 16.4+). The full list is in [requirements.txt](requirements.txt).
+If Python is missing, too old or incomplete, the launcher says so and tells you what to
+install.
 
 | System | How to start |
 |---|---|
@@ -51,7 +58,7 @@ You need **Python 3**, with no extra package, and a recent browser.
 The launcher starts a small local server, `serveur.py`, and opens the browser. Keep the
 server window open while you use the app; closing it stops the server.
 
-On first launch, the app asks for your chess.com username, your level and the example
+On first launch, the app asks for your chess.com and/or Lichess username, your level and the example
 repertoires you want. The [user guide](entraineur/GUIDE.md) (in French) describes each
 tab.
 
@@ -131,8 +138,8 @@ played.
 To let Claude know your username, level and habits, copy `profil-exemple.md` to
 `profil.md` and fill it in. `profil.md` is ignored by git.
 
-The skill's scripts also work without Claude. You need Python 3, `pip install chess`
-and Stockfish:
+The skill's scripts also work without Claude. You need Python 3.7 or later, Stockfish and
+`pip install -r requirements.txt`:
 
 ```
 python3 skills/analyse-partie-echecs/scripts/analyser.py game.pgn <username> analysis.json 22
@@ -145,7 +152,8 @@ The format of the comments file is described in `SKILL.md`.
 
 What leaves your computer:
 
-- the browser's requests to the **public chess.com API**, to import your games;
+- the browser's requests to the **public chess.com and Lichess APIs**, to check your
+  usernames and import your games;
 - requests to the **Lichess opening explorer**, if you log in to it, with no rights on
   your account;
 - your data sent to **GitHub**, if you turn on sync;
@@ -168,6 +176,7 @@ skills/analyse-partie-echecs/
   SKILL.md        the Claude skill
   scripts/        Stockfish analysis and HTML report templates
 docs/             screenshots
+requirements.txt  dependencies (pip packages, then everything else)
 ```
 
 ## Licence

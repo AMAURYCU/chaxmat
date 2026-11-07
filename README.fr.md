@@ -3,7 +3,7 @@
 [English](README.md) · **Français**
 
 Une application locale pour progresser aux échecs à partir de ses propres parties
-chess.com. Elle importe tes parties, les analyse avec Stockfish directement dans le
+chess.com et Lichess. Elle importe tes parties, les analyse avec Stockfish directement dans le
 navigateur, explique chaque coup et te fait réviser tes ouvertures par répétition
 espacée. Elle est pensée pour les joueurs débutants et de club, et s'utilise en français
 ou en anglais.
@@ -14,7 +14,7 @@ Tout tourne sur ta machine : il n'y a ni compte, ni serveur distant, ni publicit
 
 ## Ce qu'elle fait
 
-- **Import et analyse** : tes parties chess.com, analysées coup par coup avec Stockfish
+- **Import et analyse** : tes parties chess.com et Lichess, analysées coup par coup avec Stockfish
   (en WebAssembly, dans le navigateur). Tu obtiens tes gaffes, tes pièces laissées en
   prise, les menaces que tu as gérées et ta précision.
 - **Indicateurs du jour**, comparés à ton point de départ et à ta forme des 30 derniers
@@ -28,7 +28,11 @@ Tout tourne sur ta machine : il n'y a ni compte, ni serveur distant, ni publicit
 - **Trois répertoires d'exemple, chacun avec une leçon complète** : Gambit Dame,
   Défense française et Système de Londres. Chaque leçon a ses échiquiers animés, ses
   pièges, ses plans et plus de 100 quiz.
-- **Progression** jour par jour et courbe Elo.
+- **Jouer contre le bot** : écris ce que tu veux travailler (« la défense française »,
+  « contre la sicilienne »), joue-le contre un bot réglé sur ton niveau, puis reçois un
+  bilan centré sur cette ouverture. Le bot fait autant de gaffes et d'erreurs qu'un
+  joueur de ton Elo.
+- **Progression** jour par jour et une courbe Elo par site.
 - **Réglage de niveau** (débutant, intermédiaire, confirmé), qui ajuste le jugement des
   parties.
 - **Deux langues**, français et anglais, leçons comprises : le menu `FR · EN` en haut de
@@ -40,7 +44,10 @@ Tout tourne sur ta machine : il n'y a ni compte, ni serveur distant, ni publicit
 
 ## Démarrer
 
-Il faut **Python 3**, sans aucun paquet supplémentaire, et un navigateur récent.
+Il faut **Python 3.7** ou plus récent, sans aucun paquet supplémentaire, et un navigateur
+récent (Chrome ou Edge 91+, Firefox 98+, Safari 16.4+). La liste complète est dans
+[requirements.txt](requirements.txt). Si Python manque, est trop ancien ou incomplet, le
+lanceur le dit et indique quoi installer.
 
 | Système | Lancement |
 |---|---|
@@ -53,7 +60,7 @@ Le lanceur démarre un petit serveur local, `serveur.py`, et ouvre le navigateur
 fenêtre du serveur doit rester ouverte pendant que tu utilises l'application ; la
 fermer l'arrête.
 
-Au premier lancement, l'application demande ton pseudo chess.com, ton niveau et les
+Au premier lancement, l'application demande ton pseudo chess.com et/ou Lichess, ton niveau et les
 répertoires d'exemple qui t'intéressent. Le [guide](entraineur/GUIDE.md) décrit chaque
 onglet.
 
@@ -121,8 +128,8 @@ séance avec Stockfish, vérifie chaque affirmation, puis produit un rapport HTM
 Pour que Claude connaisse ton pseudo, ton niveau et tes habitudes, copie
 `profil-exemple.md` en `profil.md` et remplis-le. `profil.md` est ignoré par git.
 
-Les scripts du skill s'utilisent aussi sans Claude. Il faut Python 3, `pip install chess`
-et Stockfish :
+Les scripts du skill s'utilisent aussi sans Claude. Il faut Python 3.7 ou plus récent,
+Stockfish et `pip install -r requirements.txt` :
 
 ```
 python3 skills/analyse-partie-echecs/scripts/analyser.py partie.pgn <pseudo> analyse.json 22
@@ -135,8 +142,8 @@ Le format de `commentaires.json` est décrit dans le `SKILL.md`.
 
 Ce qui sort de ta machine :
 
-- les requêtes du navigateur à l'**API publique de chess.com**, pour importer tes
-  parties ;
+- les requêtes du navigateur aux **API publiques de chess.com et de Lichess**, pour
+  vérifier tes pseudos et importer tes parties ;
 - les requêtes à l'**explorateur d'ouvertures de Lichess**, si tu t'y connectes, sans
   aucun droit sur ton compte ;
 - l'envoi de tes données à **GitHub**, si tu actives la synchronisation ;
@@ -159,6 +166,7 @@ skills/analyse-partie-echecs/
   SKILL.md        le skill Claude
   scripts/        analyse Stockfish et gabarits de rapports HTML
 docs/             captures d'écran
+requirements.txt  les dépendances (paquets pip, puis tout le reste)
 ```
 
 ## Licence

@@ -10,13 +10,13 @@ L'application s'ouvre dans la langue du navigateur (français, sinon anglais). L
 
 La carte « Bienvenue » demande trois choses :
 
-- **ton pseudo chess.com** ;
+- **ton pseudo chess.com, ton pseudo Lichess, ou les deux** : au moins l'un des deux ;
 - **ton niveau** : débutant (moins de 1000 Elo), intermédiaire (1000 à 1600) ou
   confirmé (plus de 1600) ;
 - **les répertoires d'exemple** que tu veux, chacun avec sa leçon : Gambit Dame
   (blancs), Défense française (noirs), Système de Londres (blancs).
 
-Tout se modifie ensuite. Le pseudo et le niveau sont dans la carte d'import de
+Tout se modifie ensuite. Les pseudos et le niveau sont dans la carte d'import de
 l'onglet Aujourd'hui. Les répertoires d'exemple non choisis restent proposés dans
 l'onglet Ouvertures.
 
@@ -38,8 +38,15 @@ Le niveau ajuste deux choses :
    arrière.
 2. Clique sur « Importer et analyser ».
 
-L'application récupère tes parties sur chess.com et écarte les bots Coach et les
-parties par correspondance. Elle passe ensuite chaque coup à Stockfish, en comptant
+L'application récupère tes parties sur chess.com et sur Lichess, selon les pseudos
+remplis : un champ vide est ignoré, mais il en faut au moins un. Avant de télécharger
+quoi que ce soit, elle vérifie que chaque pseudo existe ; si l'un est faux, elle le
+signale et n'importe rien. Elle écarte les parties contre des bots ou l'ordinateur, les
+parties par correspondance et, sur Lichess, les variantes (Chess960…).
+
+Les parties des deux sites se retrouvent dans les mêmes indicateurs, gaffes et
+exercices. Seul le classement Elo reste séparé : l'onglet Progression trace une courbe
+par site, car un classement chess.com et un classement Lichess ne se comparent pas. Elle passe ensuite chaque coup à Stockfish, en comptant
 une quinzaine de secondes par partie en qualité normale. Tu obtiens les indicateurs
 du jour, la liste des parties et celle des gaffes.
 
@@ -102,6 +109,50 @@ limite la révision à tes premiers coups.
 
 Une position ou un quiz réussi revient le lendemain, puis de plus en plus loin. Raté,
 il revient le lendemain.
+
+## Jouer
+
+Une partie contre le bot, sur ce que tu veux travailler.
+
+1. Écris ta demande : « j'aimerais travailler la défense française », « la Najdorf »,
+   « contre la sicilienne », « mon répertoire Londres »… L'application affiche ce
+   qu'elle a compris : l'ouverture, la variante s'il y en a une, et la couleur que tu
+   joues. Elle connaît une trentaine d'ouvertures et tes propres répertoires. Les
+   thèmes tactiques (fourchettes, enfilades, finales) ne sont pas encore disponibles ;
+   sans ouverture reconnue, c'est une partie libre.
+2. Choisis ta couleur, la pendule et la force du bot. Par défaut, tu joues le camp qui
+   choisit l'ouverture : les noirs pour la française, les blancs pour l'italienne ;
+   « contre la sicilienne » te donne les blancs. La pendule va de « sans pendule » à
+   30 minutes.
+3. Clique sur « Lancer la partie ».
+
+**Le bot.** Il commence par la ligne demandée : celle de ton répertoire s'il en a un
+pour cette ouverture, sinon celle du répertoire d'exemple, et les variantes du livre de
+l'application. Ensuite, il joue avec Stockfish, mais à ton niveau : il fait autant de
+gaffes (coups qui perdent 3 points ou plus), d'erreurs et d'imprécisions qu'un joueur
+de cet Elo. Ces proportions viennent de 476 parties rapides chess.com entre 200 et 500
+Elo, analysées par Stockfish ; au-delà de 500 Elo, c'est une estimation. La force part
+de ton dernier Elo chess.com ; sans partie chess.com, elle est estimée d'après tes
+gaffes. Le curseur la change pour une partie.
+
+Avec une pendule, le bot prend le temps de réflexion d'un joueur de ce niveau : en
+moyenne 8 secondes par coup en partie de 10 minutes, moins dans la ligne.
+
+Pendant la partie, « Coup de la ligne » montre le coup du livre tant que tu es dedans.
+« Abandonner » se confirme d'un second clic.
+
+**Le bilan.** « Voir le bilan » ouvre le bilan habituel, avec en tête « Ce que tu
+voulais travailler » :
+
+- la variante suivie et le coup où la partie a quitté la ligne, avec ce que ça t'a
+  coûté si c'est toi qui en es sorti ;
+- tes erreurs sur tes 12 premiers coups ;
+- les principes : pièces mineures sorties avant le coup 10, roque, dame sortie tôt ;
+- l'idée de l'ouverture, et sa leçon quand il y en a une.
+
+Les parties contre le bot sont listées sous le formulaire. Elles ne comptent ni dans
+tes indicateurs, ni dans tes gaffes, ni dans ta progression. Une position ajoutée aux
+exercices depuis leur bilan reste dans Entraînement.
 
 ## Progression
 
@@ -183,13 +234,19 @@ sont détaillées dans la fenêtre Synchro.
 - **Rien ne s'ouvre au double-clic** (macOS ou Linux) : le lanceur a peut-être perdu
   son droit d'exécution. Lance une fois `chmod +x "Ouvrir l'entraineur.command"
   ouvrir-entraineur.sh`.
-- **« Python 3 n'est pas installé »** : installe-le.
-  - macOS : `xcode-select --install`.
-  - Windows : https://www.python.org/downloads/.
-  - Linux : `sudo apt install python3`.
+- **Le lanceur parle de Python** : il faut Python 3.7 ou plus récent, avec sa
+  bibliothèque standard complète. Le lanceur distingue trois cas : Python
+  introuvable, trop ancien (il affiche la version trouvée) ou incomplet (il
+  nomme les modules manquants). Installe ou mets à jour Python, puis relance :
+  - macOS : `xcode-select --install`, ou https://www.python.org/downloads/macos/.
+  - Windows : https://www.python.org/downloads/, en cochant « Add python.exe to
+    PATH ».
+  - Linux : `sudo apt install python3` (le lanceur donne la commande de ta
+    distribution).
 
-  Sans serveur, la page s'ouvre en mode simplifié : l'import et l'entraînement
-  marchent, mais pas l'analyse Stockfish.
+  Sur macOS, la page s'ouvre quand même en mode simplifié : l'import et
+  l'entraînement marchent, mais pas l'analyse Stockfish. La liste complète des
+  dépendances est dans `requirements.txt`, à la racine du dépôt.
 - **L'import ne renvoie rien** : vérifie le pseudo et la date. Les parties par
   correspondance et contre les bots Coach sont exclues volontairement.
 - **L'analyse est lente** : passe la qualité sur « Rapide ».

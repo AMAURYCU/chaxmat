@@ -797,8 +797,46 @@ a.lien-var .mv{text-decoration:none}
 .reps-exemples{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 18px}
 .reps-exemples .sous{margin:0 4px 0 0}
 
-/* ---------- langue de l'interface ---------- */
+/* ---------- langue de l'interface ----------
+   Avec le menu des langues, l'en-tête français ne tenait plus sur une ligne
+   vers 1000 px : on resserre un peu les espaces entre 620 et 1180 px. */
+@media (min-width:621px) and (max-width:1180px){
+  .bar{gap:12px}
+  nav button{padding:7px 7px;font-size:12px;letter-spacing:.01em}
+}
 .b-langue{background:none;border:1px solid var(--line-2);color:var(--muted);padding:3px 6px;border-radius:13px;
   font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.03em;cursor:pointer;width:auto}
 .b-langue:hover{background:var(--surface-2);color:var(--ink-2)}
 .b-langue:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* ---------- jouer contre le bot ---------- */
+.jouer-carte label.champ-large{width:100%}
+.jouer-carte label.champ-large input{width:100%;font-size:15px;padding:10px 12px;
+  font-family:"Source Serif 4",Georgia,serif;letter-spacing:0;text-transform:none}
+.jouer-compris{margin-top:10px;min-height:1.6em}
+.jouer-compris .compris{margin:0;font-size:14.5px;line-height:1.55}
+.jouer-compris .tag{margin-right:4px}
+.suggestions{margin-top:10px;display:grid;gap:8px}
+.sugg-ligne{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.sugg-camp{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--muted);margin-right:4px}
+button.puce{background:var(--sunk);border:1px solid var(--line);color:var(--ink-2);border-radius:13px;
+  padding:3px 10px;font-size:12px;cursor:pointer}
+button.puce:hover{border-color:var(--accent);color:var(--accent-2)}
+label.champ-elo{min-width:min(260px,100%)}
+label.champ-elo output{color:var(--ink);font-weight:700;letter-spacing:0}
+label.champ-elo input[type=range]{padding:0;border:none;background:none;accent-color:var(--accent);width:100%}
+button.lien{background:none;border:none;color:var(--accent-2);text-decoration:underline;cursor:pointer;
+  padding:0 0 0 6px;font-size:inherit;font-family:inherit}
+.pendule{max-width:560px;display:flex;justify-content:space-between;align-items:center;gap:10px;
+  padding:7px 12px;border:1px solid var(--line);background:var(--surface);margin:0 0 8px;min-height:40px}
+#pendule-bas{margin:8px 0 0}
+.pendule .pd-qui{display:flex;align-items:center;gap:8px;font-family:"JetBrains Mono",monospace;font-size:13px;color:var(--ink-2)}
+.pendule .pd-temps{font-family:"JetBrains Mono",monospace;font-size:1.25rem;font-weight:700;
+  font-variant-numeric:tabular-nums;color:var(--ink)}
+.pendule.actif{border-color:var(--accent);background:var(--accent-soft)}
+.pendule.actif.presse .pd-temps{color:var(--danger)}
+.bil-theme p{font-size:14.5px;line-height:1.55}
+.bil-theme .mv{margin-left:4px}
+.bil-principes{margin:2px 0 8px;padding-left:20px;font-size:14.5px;line-height:1.55}
+.bil-principes li{margin:2px 0}
