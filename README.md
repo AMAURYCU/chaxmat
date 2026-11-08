@@ -2,12 +2,11 @@
 
 **English** · [Français](README.fr.md) · [Website](https://amaurycu.github.io/chaxmat/)
 
-**Chaxmat** (from the Russian *shakh i mat*, "checkmate") is a free, open-source chess
-trainer for desktop and Android. It is a local app to improve at chess from your own
-chess.com and Lichess games. It imports your games, analyses them with Stockfish right
-in the browser, explains every move and has you review your openings with spaced
-repetition. It is designed for beginners and club players, and works in English or
-French.
+**Chaxmat** is a free, open-source chess trainer for desktop and Android. It is a local
+app to improve at chess from your own chess.com and Lichess games. It imports your
+games, analyses them with Stockfish right in the browser, explains every move and has
+you review your openings with spaced repetition. It is designed for beginners and club
+players, and works in English or French.
 
 Everything runs on your computer: no account, no remote server, no ads.
 

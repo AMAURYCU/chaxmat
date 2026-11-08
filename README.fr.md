@@ -2,12 +2,12 @@
 
 [English](README.md) · **Français** · [Site](https://amaurycu.github.io/chaxmat/)
 
-**Chaxmat** (du russe *chakh i mat*, « échec et mat ») est un entraîneur d'échecs libre
-et gratuit, pour l'ordinateur et Android. C'est une application locale pour progresser
-aux échecs à partir de ses propres parties chess.com et Lichess. Elle importe tes
-parties, les analyse avec Stockfish directement dans le navigateur, explique chaque coup
-et te fait réviser tes ouvertures par répétition espacée. Elle est pensée pour les
-joueurs débutants et de club, et s'utilise en français ou en anglais.
+**Chaxmat** est un entraîneur d'échecs libre et gratuit, pour l'ordinateur et Android.
+C'est une application locale pour progresser aux échecs à partir de ses propres parties
+chess.com et Lichess. Elle importe tes parties, les analyse avec Stockfish directement
+dans le navigateur, explique chaque coup et te fait réviser tes ouvertures par
+répétition espacée. Elle est pensée pour les joueurs débutants et de club, et s'utilise
+en français ou en anglais.
 
 Tout tourne sur ta machine : il n'y a ni compte, ni serveur distant, ni publicité.
 

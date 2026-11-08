@@ -76,8 +76,6 @@ table{border-collapse:collapse;width:100%;font-size:15px;margin:8px 0}
 td{border-bottom:1px solid var(--line);padding:6px 4px;vertical-align:top}
 td:first-child{white-space:nowrap;padding-right:12px;color:var(--muted)}
 
-.nom{border-left:4px solid var(--amber);background:var(--amber-soft);padding:16px 20px;margin-top:8px}
-.nom p{margin:0}
 footer{margin-top:64px;border-top:1px solid var(--line);padding:22px 0 40px;font-size:14px;color:var(--muted)}
 footer .page{display:flex;flex-wrap:wrap;gap:8px 22px}
 
