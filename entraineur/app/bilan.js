@@ -132,7 +132,7 @@ function enteteBilan() {
     el('div', { class: 'haut', style: 'margin-bottom:4px' },
       el('span', { class: 'tag ' + r[0] }, r[1]),
       el('span', { class: 'tag' }, p.couleur === 'w' ? tx('tu jouais les blancs') : tx('tu jouais les noirs')),
-      el('span', { class: 'tag' }, p.bot ? tx('bot {0}', [p.eloAdv]) : String(p.eloAdv || '?')),
+      el('span', { class: 'tag' }, p.bot ? (typeof tagBot === 'function' ? tagBot(p) : tx('bot {0}', [p.eloAdv])) : String(p.eloAdv || '?')),
       siteDe(p) === 'lichess' && !p.bot ? el('span', { class: 'tag' }, 'Lichess') : null,
       p.bot && typeof nomTheme === 'function' ? el('span', { class: 'tag grn' }, nomTheme(p)) : null,
       tagPrecision(p),

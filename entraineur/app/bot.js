@@ -322,10 +322,25 @@
     }
     return 0;
   }
-  /* les thèmes tactiques (pas encore jouables) : début de mot, ou mot entier */
-  const MOTIFS = [/^enfilad/, /^fourchett/, /^clouag/, /^decouvert/, /^tactiq/, /^sacrific/, /^final/, /^mats?$/,
-    /^mater$/, /^skewer/, /^forks?$/, /^pins?$/, /^endgame/, /^mates?$/, /^checkmate/, /^tactic/, /^combinaison/,
-    /^surcharg/, /^deviation/, /^attraction/, /^zwischenzug/, /^interception/];
+  /* ------------------------------------------------------------ les thèmes de jeu
+     Ce que le bot fait travailler pendant la partie : des occasions
+     tactiques qu'il te laisse de temps en temps, ou une partie qui va vers la
+     finale. `mots` : début de mot ou mot entier ; `expr` : expressions. */
+  const THEMES = [
+    { id: 'fourchette', nom: 'Fourchettes', mots: [/^fourchett/, /^forks?$/],
+      expr: ['double attaque', 'doubles attaques', 'double attack', 'double attacks'] },
+    { id: 'clouage', nom: 'Clouages', mots: [/^clouag/, /^clouer$/, /^pins?$/, /^pinned$/, /^pinning$/] },
+    { id: 'enfilade', nom: 'Enfilades', mots: [/^enfilad/, /^skewers?$/] },
+    { id: 'decouverte', nom: 'Attaques à la découverte', mots: [/^decouvert/, /^discovered$/] },
+    { id: 'mat', nom: 'Mats', mots: [/^mats?$/, /^mater$/, /^mates?$/, /^checkmates?$/, /^mating$/] },
+    { id: 'prise', nom: 'Pièces en prise', mots: [],
+      expr: ['en prise', 'pieces gratuites', 'piece gratuite', 'hanging piece', 'hanging pieces', 'free piece', 'free pieces'] },
+  ];
+  const TOUTES_TACTIQUES = [/^tactiq/, /^tactic/, /^combinaison/, /^combination/];
+  const FINALES = { mots: [/^finale?s?$/, /^endgames?$/], expr: ['fin de partie', 'fins de partie'] };
+  /* ce qu'on reconnaît sans savoir encore le faire travailler */
+  const PAS_ENCORE = [/^surcharg/, /^deviation/, /^attraction/, /^interception/, /^zwischenzug/, /^overload/,
+    /^deflection/, /^sacrific/];
   /* les mots de variante trop courants pour désigner une ouverture à eux seuls */
   const GENERIQUES = new Set(['avance', 'advance', 'echange', 'exchange', 'classique', 'classical', 'moderne',
     'modern', 'fermee', 'closed', 'ouverte', 'open', 'refuse', 'declined', 'accepte', 'accepted', 'semi',
@@ -365,8 +380,16 @@
     const contre = CONTRE.some(c => t.includes(c)) && !/ contre gambit /.test(t);
     const campDemande = BLANCS.some(c => t.includes(c)) ? 'w' : (NOIRS.some(c => t.includes(c)) ? 'b' : null);
     const mots = t.trim().split(' ');
-    const motif = mots.find(w => MOTIFS.some(r => r.test(w))) || null;
-    if (!cands.length) return { type: motif ? 'motif' : 'aucun', motif };
+    const a = (rs) => mots.some(w => rs.some(r => r.test(w)));
+    let motifs = THEMES.filter(th => a(th.mots) || (th.expr || []).some(e => presence(t, e) === 1)).map(th => th.id);
+    if (a(TOUTES_TACTIQUES)) motifs = THEMES.map(th => th.id);
+    const finales = a(FINALES.mots) || FINALES.expr.some(e => presence(t, e) === 1);
+    const pasEncore = mots.find(w => PAS_ENCORE.some(r => r.test(w))) || null;
+    const base = { motifs, finales, pasEncore, campDemande };
+    if (!cands.length) {
+      if (motifs.length || finales) return Object.assign(base, { type: 'jeu', camp: campDemande });
+      return Object.assign(base, { type: pasEncore ? 'motif' : 'aucun', motif: pasEncore });
+    }
     const c = cands[0];
     let entree = c.entree || null;
     /* un répertoire de l'utilisateur : son ouverture du livre, s'il y en a une */
@@ -377,7 +400,7 @@
     }
     const campOuv = c.rep ? c.rep.camp : ((c.ligne && c.ligne.camp) || entree.camp);
     const camp = campDemande || (contre ? (campOuv === 'w' ? 'b' : 'w') : campOuv);
-    return { type: 'ouverture', entree, rep: c.rep || null, ligne: c.ligne || null, camp, contre, campDemande, score: c.score };
+    return Object.assign(base, { type: 'ouverture', entree, rep: c.rep || null, ligne: c.ligne || null, camp, contre, score: c.score });
   }
 
   /* ------------------------------------------------------------ l'arbre du livre
@@ -510,8 +533,19 @@
     const meilleur = Math.max(...cs.map(l => l.cp));
     const coups = cs.map(l => ({ uci: l.uci, m: legaux.get(l.uci), perte: Math.max(0, borne(meilleur) - borne(l.cp)) }));
     for (const c of coups) c.attrait = attrait(c.m, prec, ply);
+    /* thème « finales » : le bot échange volontiers (une prise que l'adversaire
+       reprend aussitôt), surtout les dames, et se trompe moins avant d'y être,
+       pour que la partie arrive jusqu'à la finale */
+    if (R.simplifier) {
+      const pv = new Map(cs.map(l => [l.uci, l.pv || []]));
+      for (const c of coups) {
+        const suite = pv.get(c.uci);
+        if (c.m.captured && suite[1] && suite[1].slice(2, 4) === c.m.to) c.attrait *= (c.m.captured === 'q' ? 8 : 4);
+      }
+    }
+    const prudence = R.simplifier && R.avantFinale ? 0.5 : 1;
     const c = cible(elo), ph = phaseDe(ply);
-    const pG = Math.min(0.6, R.kg * c.g * ph.g), pE = Math.min(0.6, R.ke * c.e * ph.e);
+    const pG = Math.min(0.6, R.kg * c.g * ph.g * prudence), pE = Math.min(0.6, R.ke * c.e * ph.e * prudence);
     const T = R.t0 * Math.exp(-(Math.max(100, Math.min(2400, elo)) - REF.elo) / R.tPente) * ph.i;
     const r = alea();
     const gaffes = coups.filter(x => x.perte >= 300);
@@ -525,6 +559,517 @@
     }
     const x = tirer(pool, poids, alea);
     return { uci: x.uci, sorte, perte: x.perte };
+  }
+
+  /* ------------------------------------------------------------ les occasions tactiques
+     Le bot peut jouer un coup qui te laisse une tactique : il ne pare pas
+     une fourchette, il laisse un clouage ou un mat. Les candidats viennent
+     de l'analyse de tous ses coups (Moteur.multi) : pour chaque coup, la
+     ligne principale donne ta meilleure réponse, qu'on reconnaît avec les
+     règles des explications (explications.js). Difficulté :
+       1 — la réponse gagnante est un coup forcé (échec ou prise) ;
+       2 — c'est un coup tranquille ;
+       3 — elle vient en deux temps : un coup forcé d'abord, puis la tactique.
+     Pour le mat : mat en 1, en 2 ou en 3. */
+  const expl = () => (typeof Expl !== 'undefined' ? Expl : racine.Expl);
+  function motifsDuCoup(fen, uci, prec) {
+    const E = expl();
+    let f = null;
+    try { f = E.analyserCoup(fen, uci, prec); } catch (e) { f = null; }
+    if (!f) return { motifs: [], force: false };
+    const out = [];
+    if (f.mat) out.push('mat');
+    if (f.fourchette) out.push('fourchette');
+    if (f.clouages.some(k => f.menaces.some(x => x.sq === k.cloue.sq))) out.push('clouage');
+    if (f.enfilades.length) out.push('enfilade');
+    if (f.decouvertes.some(x => x.t === 'k' || E.V(x.t) >= 300)) out.push('decouverte');
+    if (f.capture && f.capture.net >= 250 && !f.capture.reprise) out.push('prise');
+    return { motifs: out, force: !!(f.echec || f.capture), san: f.san };
+  }
+  function jouerUci(j, uci) {
+    try { return j.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] || 'q' }); } catch (e) { return null; }
+  }
+  /* Les coups du bot qui te laissent un des `voulus` : [{ uci, perte, motif,
+     niveau, sol, solSan, attrait }]. `lignes` : du point de vue du bot. */
+  function occasions(lignes, fen, voulus, prec, ply) {
+    const jeu = new Echecs(fen);
+    const legaux = new Map(jeu.moves({ verbose: true }).map(m => [m.from + m.to + (m.promotion || ''), m]));
+    const cs = lignes.filter(l => legaux.has(l.uci));
+    if (cs.length < 2) return [];
+    const meilleur = Math.max(...cs.map(l => l.cp));
+    const out = [];
+    for (const l of cs) {
+      const pv = l.pv || [];
+      if (pv.length < 2) continue;
+      const perte = Math.max(0, borne(meilleur) - borne(l.cp));
+      const matEn = l.cp <= -9997 ? 10000 + l.cp : 0;               // le bot se fait mater en 1, 2 ou 3
+      if (matEn) { if (!voulus.has('mat')) continue; }
+      else if (perte < 150 || perte > 950) continue;                 // ni un rien, ni un cadeau grossier
+      const j = new Echecs(fen);
+      const m = jouerUci(j, l.uci); if (!m) continue;
+      const fen2 = j.fen();
+      let trouve = null;
+      if (matEn) trouve = { motif: 'mat', niveau: Math.min(3, matEn) };
+      else {
+        const a = motifsDuCoup(fen2, pv[1], m);
+        const ok = a.motifs.filter(x => voulus.has(x) && x !== 'mat');
+        if (ok.length) trouve = { motif: ok[0], niveau: ok[0] === 'prise' || a.force ? 1 : 2 };
+        else if (a.force && pv.length >= 4) {
+          /* en deux temps : ton coup forcé, sa réponse, puis la tactique */
+          const r1 = jouerUci(j, pv[1]), r2 = r1 && jouerUci(j, pv[2]);
+          if (r2) {
+            const b = motifsDuCoup(j.fen(), pv[3], r2);
+            const ok2 = b.motifs.filter(x => voulus.has(x) && x !== 'mat' && x !== 'prise');
+            if (ok2.length) trouve = { motif: ok2[0], niveau: 3 };
+          }
+        }
+      }
+      if (!trouve) continue;
+      const j2 = new Echecs(fen2);
+      const sol = jouerUci(j2, pv[1]);
+      out.push(Object.assign(trouve, { uci: l.uci, perte, sol: pv[1], solSan: sol ? sol.san : pv[1],
+        attrait: attrait(m, prec, ply), cp: l.cp, meilleur }));
+    }
+    return out;
+  }
+  /* Le coup-cadeau : la difficulté la plus proche de ton niveau dans ce
+     motif, un coup naturel plutôt qu'absurde, et le moins coûteux possible
+     pour qu'il ne saute pas aux yeux. `niveaux` : { motif: 1 à 3 }. */
+  function choisirOccasion(cands, niveaux, alea) {
+    if (!cands.length) return null;
+    const poids = (x) => x.attrait * Math.exp(-1.6 * Math.abs(x.niveau - ((niveaux || {})[x.motif] || 1)))
+      * Math.exp(-(x.perte - 150) / 500);
+    return tirer(cands, poids, alea || Math.random);
+  }
+  /* Ton niveau dans un motif, de 1 à 3 : un quart de point en plus quand tu
+     trouves, en moins quand tu rates. */
+  function majNiveau(n, trouve) {
+    return Math.max(1, Math.min(3, Math.round(((n || 1) + (trouve ? 0.25 : -0.25)) * 100) / 100));
+  }
+
+  /* ------------------------------------------------------------ le bot personnalisé
+     Un réseau à une couche (un logit conditionnel) qui apprend, sur les
+     parties de l'utilisateur, comment SES adversaires choisissent parmi les
+     coups que Stockfish juge possibles. Stockfish note chaque coup ; le
+     réseau ne sait pas jouer aux échecs, il sait seulement quel coup un de
+     ces humains aurait préféré : prendre, reprendre, faire échec, roquer,
+     laisser une pièce attaquée, rater une pièce gratuite, gaffer quand le
+     temps presse, tomber dans une fourchette plutôt que dans une pièce
+     simplement en prise… L'étude faite sur 2 901 coups des adversaires
+     d'Amaury : un réseau à couche cachée ne faisait pas mieux que ce modèle,
+     et les six indices tactiques l'améliorent un peu, de façon régulière. */
+  const TRAITS = ['l1', 'l2', 'l3', 'gaffe', 'erreur', 'prise_v', 'prise', 'reprise', 'echec', 'roque',
+    'p_n', 'p_b', 'p_r', 'p_q', 'p_k', 'roi_tot', 'dame_tot', 'sauve', 'laisse', 'menace_ignoree',
+    'gratuite', 'promo', 'l1_elo', 'l3_elo', 'gaffe_elo', 'l1_temps', 'gaffe_temps', 'l1_phase', 'gaffe_phase',
+    'joue_tac', 'joue_tac_bon', 'joue_mat', 'cede_tac', 'cede_tac_gaffe', 'cede_mat'];
+  const TACTIQUES = new Set(['fourchette', 'clouage', 'enfilade', 'decouverte']);
+  const VALP = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
+  const autreC = (c) => (c === 'w' ? 'b' : 'w');
+  /* Gain net en prenant sur `sq` (reprises en chaîne, la pièce la moins
+     chère d'abord) ; ignore les clouages, comme un coup d'œil humain. */
+  function seeSimple(jeu, sq, cote) {
+    const b = new Echecs(jeu.fen());
+    const cible = b.get(sq);
+    if (!cible) return 0;
+    const gains = []; let val = VALP[cible.type], c = cote;
+    for (let k = 0; k < 16; k++) {
+      let att = [];
+      try { att = b.attackers(sq, c); } catch (e) { att = []; }
+      if (!att.length) break;
+      let s = att[0];
+      for (const x of att) if (VALP[b.get(x).type] < VALP[b.get(s).type]) s = x;
+      const pc = b.get(s);
+      b.remove(s); b.remove(sq); b.put(pc, sq);
+      gains.push(val); val = VALP[pc.type]; c = autreC(c);
+    }
+    let net = 0;
+    for (let i = gains.length - 1; i >= 0; i--) net = Math.max(0, gains[i] - net);
+    return net;
+  }
+  function pireEnPrise(jeu, couleur) {
+    let pire = 0;
+    for (const rg of jeu.board()) for (const x of rg) {
+      if (!x || x.color !== couleur || x.type === 'k') continue;
+      let att = [];
+      try { att = jeu.attackers(x.square, autreC(couleur)); } catch (e) { att = []; }
+      if (att.length) pire = Math.max(pire, seeSimple(jeu, x.square, autreC(couleur)));
+    }
+    return pire;
+  }
+  /* Les traits de chaque coup candidat. ctx : { elo (de l'adversaire
+     imité), reste (secondes à sa pendule, ou null), ply }. `lignes` :
+     Moteur.multi, dont pv[1] (ta meilleure réponse) sert aux indices
+     « laisse une tactique ». Les parties coûteuses (échanges, tactiques)
+     reviennent dans `cout` ({ a: pire perte avant /10, c: un code par
+     coup }) : rangées avec la position, elles évitent de les recalculer à
+     chaque apprentissage. */
+  function traitsPosition(fen, precUci, lignes, ctx, cout) {
+    const b = new Echecs(fen), c = b.turn(), adv = autreC(c);
+    const legaux = new Map(b.moves({ verbose: true }).map(m => [m.from + m.to + (m.promotion || ''), m]));
+    const cs = lignes.filter(l => legaux.has(l.uci));
+    if (!cs.length) return null;
+    const meilleur = Math.max(...cs.map(l => l.cp));
+    const pireAvant = cout ? cout.a * 10 : pireEnPrise(b, c);
+    const eloz = ((ctx.elo || 400) - 400) / 100;
+    const court = ctx.reste !== null && ctx.reste !== undefined && ctx.reste < 60 ? 1 : 0;
+    const phase = Math.max(-1, Math.min(1.5, (ctx.ply - 30) / 30));
+    const precTo = precUci ? precUci.slice(2, 4) : null;
+    const precM = precUci ? { from: precUci.slice(0, 2), to: precUci.slice(2, 4) } : null;
+    const X = [], ucis = [], pertes = [], codes = [];
+    for (const l of cs) {
+      const m = legaux.get(l.uci);
+      const perte = Math.max(0, borne(meilleur) - borne(l.cp));
+      const capt = m.captured || null;
+      const roque = m.flags.includes('k') || m.flags.includes('q');
+      let attaque, pireApres, gratuite, jt, jmat, ct, cmat;
+      const code = cout ? cout.c[lignes.indexOf(l)] : undefined;
+      if (code !== undefined && code !== null) {
+        [attaque, gratuite, jt, jmat, ct, cmat] = [1, 2, 4, 8, 16, 32].map(bit => (code & bit ? 1 : 0));
+        pireApres = Math.floor(code / 64) * 10;
+      } else {
+        attaque = 0;
+        try { attaque = b.attackers(m.from, adv).length > 0 && seeSimple(b, m.from, adv) > 0 ? 1 : 0; } catch (e) { }
+        const b2 = new Echecs(fen); b2.move(m);
+        pireApres = pireEnPrise(b2, c);
+        gratuite = capt && VALP[capt] - seeSimple(b2, m.to, adv) >= 200 ? 1 : 0;
+        const jm = motifsDuCoup(fen, l.uci, precM).motifs;
+        const rep = (l.pv || [])[1];
+        const cm = rep ? motifsDuCoup(b2.fen(), rep, m).motifs : [];
+        jt = jm.some(t => TACTIQUES.has(t)) ? 1 : 0; jmat = jm.includes('mat') ? 1 : 0;
+        ct = cm.some(t => TACTIQUES.has(t)) ? 1 : 0; cmat = cm.includes('mat') ? 1 : 0;
+      }
+      codes.push(attaque + 2 * gratuite + 4 * jt + 8 * jmat + 16 * ct + 32 * cmat + 64 * Math.round(pireApres / 10));
+      const l1 = Math.min(perte, 100) / 100, l2 = Math.min(Math.max(perte - 100, 0), 200) / 200;
+      const l3 = Math.min(Math.max(perte - 300, 0), 1200) / 1200;
+      const g = perte >= 300 ? 1 : 0, e = perte >= 100 && perte < 300 ? 1 : 0;
+      const roi = m.piece === 'k' && !roque;
+      X.push([l1, l2, l3, g, e, capt ? VALP[capt] / 100 : 0, capt ? 1 : 0, capt && precTo === m.to ? 1 : 0,
+        /[+#]/.test(m.san) ? 1 : 0, roque ? 1 : 0,
+        m.piece === 'n' ? 1 : 0, m.piece === 'b' ? 1 : 0, m.piece === 'r' ? 1 : 0, m.piece === 'q' ? 1 : 0, roi ? 1 : 0,
+        roi && ctx.ply < 60 ? 1 : 0, m.piece === 'q' && ctx.ply < 14 ? 1 : 0,
+        attaque, Math.max(0, pireApres - pireAvant) / 100, pireAvant >= 100 && pireApres >= pireAvant ? 1 : 0,
+        gratuite, m.promotion && m.promotion !== 'q' ? 1 : 0,
+        l1 * eloz, l3 * eloz, g * eloz, l1 * court, g * court, l1 * phase, g * phase,
+        jt, jt * (perte < 50 ? 1 : 0), jmat, ct, ct * g, cmat]);
+      ucis.push(l.uci); pertes.push(perte);
+    }
+    return { X, ucis, pertes, lignes: cs, cout: { a: Math.round(pireAvant / 10), c: codes } };
+  }
+  const produit = (w, x) => { let s = 0; for (let k = 0; k < x.length; k++) s += w[k] * x[k]; return s; };
+  function softmax(sc) {
+    const mx = Math.max(...sc), e = sc.map(v => Math.exp(v - mx)), t = e.reduce((a, v) => a + v, 0);
+    return e.map(v => v / t);
+  }
+  /* Apprentissage : méthode de Newton sur la vraisemblance du coup joué,
+     avec une pénalité L2 (λ = 0,5) qui garde les poids raisonnables quand
+     les données manquent. rows : [{ X, y, poids }]. */
+  async function entrainer(rows, opts) {
+    opts = opts || {};
+    const F = rows.length ? rows[0].X[0].length : TRAITS.length, lam = opts.l2 === undefined ? 0.5 : opts.l2;
+    let w = new Array(F).fill(0);
+    const vraisemblance = (w) => {
+      let ll = 0;
+      for (const r of rows) {
+        const sc = r.X.map(x => produit(w, x)), mx = Math.max(...sc);
+        let t = 0; for (const v of sc) t += Math.exp(v - mx);
+        ll += (r.poids || 1) * (sc[r.y] - mx - Math.log(t));
+      }
+      return ll - lam * produit(w, w);
+    };
+    let ll = vraisemblance(w);
+    for (let it = 0; it < (opts.iterations || 25); it++) {
+      const g = new Array(F).fill(0), H = Array.from({ length: F }, () => new Array(F).fill(0));
+      for (const r of rows) {
+        const pw = r.poids || 1;
+        const p = softmax(r.X.map(x => produit(w, x)));
+        const moy = new Array(F).fill(0);
+        for (let j = 0; j < r.X.length; j++) for (let k = 0; k < F; k++) moy[k] += p[j] * r.X[j][k];
+        for (let k = 0; k < F; k++) g[k] += pw * (r.X[r.y][k] - moy[k]);
+        for (let j = 0; j < r.X.length; j++) {
+          if (p[j] < 1e-6) continue;
+          const x = r.X[j];
+          for (let a = 0; a < F; a++) {
+            const da = x[a] - moy[a];
+            if (da === 0) continue;
+            for (let c2 = a; c2 < F; c2++) H[a][c2] += pw * p[j] * da * (x[c2] - moy[c2]);
+          }
+        }
+      }
+      for (let a = 0; a < F; a++) { g[a] -= 2 * lam * w[a]; H[a][a] += 2 * lam; for (let c2 = 0; c2 < a; c2++) H[a][c2] = H[c2][a]; }
+      const d = resoudre(H, g);
+      let pas = 1, w2, ll2;
+      for (let k = 0; k < 12; k++) {
+        w2 = w.map((v, i) => v + pas * d[i]); ll2 = vraisemblance(w2);
+        if (ll2 >= ll - 1e-9) break;
+        pas /= 2;
+      }
+      const gain = ll2 - ll;
+      w = w2; ll = ll2;
+      if (opts.pendant) await opts.pendant(it);
+      if (gain < 1e-4) break;
+    }
+    return w;
+  }
+  /* Le réseau à une couche cachée : H neurones (tanh) plus le lien direct
+     du modèle simple, score = v·tanh(xW + b) + w·x. Avec peu de positions il
+     fait moins bien que le modèle simple ; avec 4 000 positions d'Amaury, il
+     fait nettement mieux. Méthode L-BFGS, pénalité L2 (λ = 1), et surtout
+     arrêt précoce : avec `val` (des positions d'autres parties), on garde
+     l'itération où il prévoit le mieux ces parties-là — sans arrêt, il
+     apprend trop les parties d'apprentissage (−2,210 à 400 itérations,
+     −2,194 à 80, sur 5 078 positions). Sans `val`, `iterations` fixe. */
+  function aleaGauss(graine) {
+    let a = graine >>> 0;
+    const u = () => { a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+    return () => Math.sqrt(-2 * Math.log(u() + 1e-12)) * Math.cos(2 * Math.PI * u());
+  }
+  function deballer(t, F, H) {
+    return { W: t.subarray(0, F * H), b: t.subarray(F * H, F * H + H), v: t.subarray(F * H + H, F * H + 2 * H), w: t.subarray(F * H + 2 * H) };
+  }
+  function scoresReseau(m, X) {
+    const F = X[0].length, H = m.H, t = Float64Array.from(m.t), { W, b, v, w } = deballer(t, F, H);
+    return X.map(x => {
+      let s = 0;
+      for (let k = 0; k < F; k++) s += w[k] * x[k];
+      for (let h = 0; h < H; h++) {
+        let a = b[h];
+        for (let k = 0; k < F; k++) if (x[k]) a += x[k] * W[k * H + h];
+        s += v[h] * Math.tanh(a);
+      }
+      return s;
+    });
+  }
+  const probasModele = (m, X) => softmax(m.H ? scoresReseau(m, X) : X.map(x => produit(m.w, x)));
+  async function entrainerReseau(rows, opts) {
+    opts = opts || {};
+    const F = rows[0].X[0].length, H = opts.H || 8, lam = opts.l2 === undefined ? 1 : opts.l2;
+    const P = F * H + 2 * H + F;
+    const R = rows.map(r => ({ n: r.X.length, x: Float64Array.from(r.X.flat()), y: r.y, p: r.poids || 1 }));
+    const nMax = Math.max(...R.map(r => r.n));
+    const A = new Float64Array(nMax * H), Hh = new Float64Array(nMax * H), S = new Float64Array(nMax);
+    const f = (t) => {
+      const { W, b, v, w } = deballer(t, F, H), g = new Float64Array(P);
+      const gW = g.subarray(0, F * H), gb = g.subarray(F * H, F * H + H), gv = g.subarray(F * H + H, F * H + 2 * H), gw = g.subarray(F * H + 2 * H);
+      let ll = 0;
+      for (const r of R) {
+        const x = r.x;
+        let mx = -Infinity;
+        for (let j = 0; j < r.n; j++) {
+          const o = j * F; let s = 0;
+          for (let k = 0; k < F; k++) s += w[k] * x[o + k];
+          for (let h = 0; h < H; h++) A[j * H + h] = b[h];
+          for (let k = 0; k < F; k++) {
+            const xv = x[o + k]; if (!xv) continue;
+            const ow = k * H;
+            for (let h = 0; h < H; h++) A[j * H + h] += xv * W[ow + h];
+          }
+          for (let h = 0; h < H; h++) { const th = Math.tanh(A[j * H + h]); Hh[j * H + h] = th; s += v[h] * th; }
+          S[j] = s; if (s > mx) mx = s;
+        }
+        let tot = 0;
+        for (let j = 0; j < r.n; j++) { S[j] = Math.exp(S[j] - mx); tot += S[j]; }
+        ll += r.p * Math.log(Math.max(1e-300, S[r.y] / tot));
+        for (let j = 0; j < r.n; j++) {
+          const gs = r.p * ((j === r.y ? 1 : 0) - S[j] / tot);
+          if (Math.abs(gs) < 1e-12) continue;
+          const o = j * F;
+          for (let k = 0; k < F; k++) gw[k] += gs * x[o + k];
+          for (let h = 0; h < H; h++) {
+            const th = Hh[j * H + h];
+            gv[h] += gs * th;
+            const d = gs * v[h] * (1 - th * th);
+            gb[h] += d;
+            for (let k = 0; k < F; k++) { const xv = x[o + k]; if (xv) gW[k * H + h] += xv * d; }
+          }
+        }
+      }
+      let pen = 0;
+      for (let i = 0; i < P; i++) { pen += t[i] * t[i]; g[i] = -g[i] + 2 * lam * t[i]; }
+      return [-ll + lam * pen, g];
+    };
+    /* départ : tiré au hasard (graine fixe), ou un réseau déjà appris
+       (après un import, ou pour la version coriace) */
+    const z = aleaGauss(opts.graine || 1), t0 = new Float64Array(P);
+    if (opts.depart && opts.depart.t && opts.depart.t.length === P) t0.set(opts.depart.t);
+    else {
+      for (let i = 0; i < F * H; i++) t0[i] = 0.1 * z();
+      for (let i = F * H + H; i < F * H + 2 * H; i++) t0[i] = 0.1 * z();
+    }
+    let meilleur = null, sans = 0;
+    const suivi = opts.val && opts.val.length ? (it, t) => {
+      const m = { H, t };
+      let ll = 0;
+      for (const r of opts.val) ll += Math.log(Math.max(1e-12, probasModele(m, r.X)[r.y]));
+      if (!meilleur || ll > meilleur.ll) { meilleur = { ll, it: it + 1, t: Float64Array.from(t) }; sans = 0; } else sans++;
+      return sans >= (opts.patience || 30);
+    } : null;
+    let t = await lbfgs(f, t0, opts.iterations || (suivi ? 400 : 80), opts.pendant, suivi);
+    if (meilleur) t = meilleur.t;
+    return { H, t: Array.from(t, (x) => Math.round(x * 1e6) / 1e6), iterations: meilleur ? meilleur.it : null };
+  }
+  async function lbfgs(f, x0, iters, pendant, suivi) {
+    const dot = (a, c) => { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * c[i]; return s; };
+    let x = x0, [fx, g] = f(x);
+    const Ss = [], Ys = [];
+    for (let it = 0; it < iters; it++) {
+      const q = Float64Array.from(g), al = [];
+      for (let i = Ss.length - 1; i >= 0; i--) {
+        al[i] = dot(Ss[i], q) / dot(Ys[i], Ss[i]);
+        for (let k = 0; k < q.length; k++) q[k] -= al[i] * Ys[i][k];
+      }
+      const n = Ss.length;
+      const gam = n ? dot(Ss[n - 1], Ys[n - 1]) / dot(Ys[n - 1], Ys[n - 1]) : 1 / Math.max(1, Math.sqrt(dot(g, g)));
+      for (let k = 0; k < q.length; k++) q[k] *= gam;
+      for (let i = 0; i < n; i++) {
+        const be = dot(Ys[i], q) / dot(Ys[i], Ss[i]);
+        for (let k = 0; k < q.length; k++) q[k] += (al[i] - be) * Ss[i][k];
+      }
+      let d = q.map(v => -v), gd = dot(g, d);
+      if (!(gd < 0)) { d = g.map(v => -v); gd = -dot(g, g); Ss.length = 0; Ys.length = 0; }
+      let pas = 1, xn, fn, gn;
+      for (let k = 0; k < 30; k++) {
+        xn = x.map((v, i) => v + pas * d[i]); [fn, gn] = f(xn);
+        if (fn <= fx + 1e-4 * pas * gd) break;
+        pas /= 2;
+      }
+      if (!(fn <= fx)) break;
+      const s = xn.map((v, i) => v - x[i]), y = gn.map((v, i) => v - g[i]);
+      if (dot(s, y) > 1e-10) { Ss.push(s); Ys.push(y); if (Ss.length > 10) { Ss.shift(); Ys.shift(); } }
+      const gain = (fx - fn) / Math.max(1, Math.abs(fx));
+      x = xn; fx = fn; g = gn;
+      if (pendant) await pendant(it);
+      if (suivi && suivi(it, x)) break;
+      if (gain < 1e-8 && it > 20) break;
+    }
+    return x;
+  }
+
+  function resoudre(A0, b0) {          // Gauss avec pivot partiel ; A symétrique définie positive
+    const n = b0.length, A = A0.map(r => r.slice()), b = b0.slice();
+    for (let i = 0; i < n; i++) {
+      let p = i; for (let k = i + 1; k < n; k++) if (Math.abs(A[k][i]) > Math.abs(A[p][i])) p = k;
+      [A[i], A[p]] = [A[p], A[i]]; [b[i], b[p]] = [b[p], b[i]];
+      const piv = A[i][i] || 1e-12;
+      for (let k = i + 1; k < n; k++) {
+        const f = A[k][i] / piv; if (!f) continue;
+        for (let c2 = i; c2 < n; c2++) A[k][c2] -= f * A[i][c2];
+        b[k] -= f * b[i];
+      }
+    }
+    const x = new Array(n).fill(0);
+    for (let i = n - 1; i >= 0; i--) {
+      let t = b[i]; for (let k = i + 1; k < n; k++) t -= A[i][k] * x[k];
+      x[i] = t / (A[i][i] || 1e-12);
+    }
+    return x;
+  }
+  /* La règle du bot de base, en probabilités (même tirage que choisir()) :
+     pour comparer honnêtement le modèle appris à ce qu'on avait. */
+  function probasRegle(r, elo, ply) {
+    const R = CALIB, x = r.X, l = r.pertes;
+    const c = cible(elo), ph = phaseDe(ply);
+    const pG = Math.min(0.6, R.kg * c.g * ph.g), pE = Math.min(0.6, R.ke * c.e * ph.e);
+    const T = R.t0 * Math.exp(-(Math.max(100, Math.min(2400, elo)) - REF.elo) / R.tPente) * ph.i;
+    const i = (n) => TRAITS.indexOf(n);
+    const att = x.map(f => (f[i('prise')] ? 2.2 : 1) * (f[i('reprise')] ? 2 : 1) * (f[i('echec')] ? 1.5 : 1)
+      * (f[i('roque')] ? 2 : 1) * (f[i('roi_tot')] ? 0.35 : 1) * (f[i('dame_tot')] ? 0.6 : 1) * (f[i('promo')] ? 0.03 : 1));
+    const G = l.map(v => v >= 300), E = l.map(v => v >= 100 && v < 300), Bn = l.map(v => v < 100);
+    const aG = G.some(Boolean), aE = E.some(Boolean);
+    const PgC = aG ? pG : 0, PeC = aE ? (aG ? pE : pG + pE) : 0, PnC = 1 - PgC - PeC;
+    const p = new Array(l.length).fill(0);
+    const ajouter = (masque, poids, P) => {
+      const w = l.map((v, j) => (masque[j] ? poids(j) : 0)), t = w.reduce((a, v) => a + v, 0);
+      if (t > 0) for (let j = 0; j < l.length; j++) p[j] += P * w[j] / t;
+    };
+    if (aG) ajouter(G, (j) => att[j] * Math.exp(-(l[j] - 300) / 450), PgC);
+    if (aE) ajouter(E, (j) => att[j], PeC);
+    ajouter(Bn, (j) => att[j] * Math.exp(-l[j] / T), PnC);
+    return p;
+  }
+  /* Mesures sur des positions : vraisemblance moyenne du coup joué, coup
+     joué dans le premier choix ou les trois premiers, part de gaffes
+     prévue et observée. `probas(r)` : probabilité de chaque candidat. */
+  function mesurer(rows, probas) {
+    let ll = 0, t1 = 0, t3 = 0, gp = 0, go = 0;
+    for (const r of rows) {
+      const p = probas(r);
+      ll += Math.log(Math.max(1e-12, p[r.y]));
+      const rang = p.filter(v => v > p[r.y]).length;
+      if (rang < 1) t1++; if (rang < 3) t3++;
+      gp += p.reduce((a, v, j) => a + (r.pertes[j] >= 300 ? v : 0), 0);
+      go += r.pertes[r.y] >= 300 ? 1 : 0;
+    }
+    const n = rows.length || 1;
+    return { ll: ll / n, top1: t1 / n, top3: t3 / n, gaffesPrevues: gp / n, gaffesObservees: go / n, n: rows.length };
+  }
+  /* Validation croisée par partie (aucune partie à la fois dans
+     l'apprentissage et dans le test) : le modèle contre la règle de base. */
+  async function valider(rows, k, pendant) {
+    const parties = [...new Set(rows.map(r => r.g))];
+    const pli = new Map(parties.map((g, i) => [g, i % k]));
+    const res = { modele: [], regle: [] };
+    for (let f = 0; f < k; f++) {
+      const app = rows.filter(r => pli.get(r.g) !== f), test = rows.filter(r => pli.get(r.g) === f);
+      if (!test.length || !app.length) continue;
+      const w = await entrainer(app, { pendant });
+      res.modele.push(mesurer(test, (r) => softmax(r.X.map(x => produit(w, x)))));
+      res.regle.push(mesurer(test, (r) => probasRegle(r, r.elo || 400, r.ply || 30)));
+    }
+    const moy = (l, c) => l.reduce((a, x) => a + x[c] * x.n, 0) / l.reduce((a, x) => a + x.n, 0);
+    const out = {};
+    for (const m of ['modele', 'regle']) out[m] = Object.fromEntries(['ll', 'top1', 'top3', 'gaffesPrevues', 'gaffesObservees'].map(c => [c, moy(res[m], c)]));
+    return out;
+  }
+  /* Le coup du bot personnalisé. reglage : comme choisir() (finales). */
+  function choisirPerso(lignes, fen, prec, ply, modele, ctx, alea, reglage) {
+    alea = alea || Math.random;
+    const t = traitsPosition(fen, prec ? prec.from + prec.to + (prec.promotion || '') : null, lignes, Object.assign({ ply }, ctx));
+    if (!t) return null;
+    if (t.ucis.length === 1) return { uci: t.ucis[0], sorte: 'seul', perte: 0 };
+    const sc = modele.H ? scoresReseau(modele, t.X) : t.X.map(x => produit(modele.w, x));
+    if (reglage && reglage.simplifier) {
+      t.ucis.forEach((u, j) => {
+        const m = jouerUci(new Echecs(fen), u), suite = (t.lignes[j].pv || [])[1];
+        if (m && m.captured && suite && suite.slice(2, 4) === m.to) sc[j] += Math.log(m.captured === 'q' ? 8 : 4);
+        if (reglage.avantFinale && t.pertes[j] >= 300) sc[j] += Math.log(0.5);
+      });
+    }
+    const p = softmax(sc);
+    const j = tirer(t.ucis.map((u, k) => k), (k) => p[k], alea);
+    const perte = t.pertes[j];
+    return { uci: t.ucis[j], sorte: perte >= 300 ? 'gaffe' : perte >= 100 ? 'erreur' : 'normal', perte };
+  }
+  /* Le livre des adversaires : les coups qu'ils t'ont joués dans les douze
+     premiers demi-coups. `livre` : { clé de position: [[uci, san, n, nCoriace]] },
+     complété en place par chaque partie { sans: [...], couleur (la tienne),
+     score (le tien) } ; nCoriace compte trois fois les parties perdues. */
+  const POIDS_CORIACE = { 0: 3, 0.5: 1.5, 1: 1 };
+  function compterLivre(livre, parties) {
+    for (const p of parties) {
+      const j = new Echecs(); const adv = p.couleur === 'w' ? 'b' : 'w';
+      const pc = POIDS_CORIACE[p.score] || 1;
+      for (let i = 0; i < Math.min(12, p.sans.length); i++) {
+        const k = cleDe(j);
+        let m; try { m = j.move(p.sans[i]); } catch (e) { break; }
+        if (m.color !== adv) continue;
+        const u = m.from + m.to + (m.promotion || '');
+        const l = livre[k] || (livre[k] = []);
+        let x = l.find(a => a[0] === u);
+        if (!x) { x = [u, m.san, 0, 0]; l.push(x); }
+        x[2]++; x[3] += pc;
+      }
+    }
+    return livre;
+  }
+  /* L'arbre du bot (même forme que arbre()) : les positions vues au moins
+     deux fois, chaque coup pesant sa fréquence. */
+  function arbreDuLivre(livre, coriace) {
+    const out = new Map();
+    for (const [k, v] of Object.entries(livre || {})) {
+      if (v.reduce((a, x) => a + x[2], 0) < 2) continue;
+      out.set(k, v.map(([u, s, n, nc]) => ({ u, s, poids: coriace ? nc : n, src: new Set(['adv']) })));
+    }
+    return out;
   }
 
   /* ------------------------------------------------------------ la pendule
@@ -545,5 +1090,9 @@
   racine.Bot = {
     LIVRE, normaliser, comprendre, arbre, cleDe, lignesDe, positionsDef, varianteSuivie, tirer,
     cible, phaseDe, CALIB, choisir, attrait, tempsReflexion, REF, PENTE,
+    THEMES, motifsDuCoup, occasions, choisirOccasion, majNiveau,
+    TRAITS, traitsPosition, entrainer, mesurer, valider, probasRegle, choisirPerso, softmax, produit,
+    entrainerReseau, scoresReseau, probasModele,
+    compterLivre, arbreDuLivre, seeSimple, POIDS_CORIACE,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

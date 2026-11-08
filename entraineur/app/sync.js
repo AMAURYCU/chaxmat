@@ -345,6 +345,7 @@ const Fusion = {
     quizOuv: (x) => [(x.ok || 0) + (x.ko || 0), x.dernier || ''],
     parties: (x) => [x.moteur ? 1 : 0, JSON.stringify(x).length],
     partiesBot: (x) => [x.moteur ? 1 : 0, JSON.stringify(x).length],
+    botPositions: (x) => [Array.isArray(x) ? x.length : 0],
     jours: (x) => [x.parties || 0, x.coups || 0],
     cartes: (x) => [JSON.stringify(x).length],
   },

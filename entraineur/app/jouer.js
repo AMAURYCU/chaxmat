@@ -27,7 +27,29 @@ const J = {
   camp: 'w', elo: 450, demande: null, entree: null, ligne: null, rep: null, arbre: null,
   pendule: null, temps: { w: 0, b: 0 }, depuis: 0, minuteur: null,
   durees: [], indices: 0, sortie: null, eloManuel: false, fin: null,
+  motifs: new Set(), finales: false, occasions: [], occasionEnCours: null, dernierCadeau: -99,
+  perso: null, persoType: null,
 };
+/* Les occasions tactiques : au plus une fois tous les ATTENTE_CADEAU demi-coups
+   (davantage quand tu maîtrises le motif), et pas à chaque fois qu'elle est
+   possible, sinon ça se voit. */
+const PROBA_CADEAU = 0.4, ATTENTE_CADEAU = 8, ATTENTE_MAITRISE = 12;
+const NOMS_MOTIFS = () => Object.fromEntries(Bot.THEMES.map(t => [t.id, tx(t.nom)]));
+/* au singulier, pour les phrases du bilan */
+const MOTIF_UN = () => ({ fourchette: tx('une fourchette'), clouage: tx('un clouage'), enfilade: tx('une enfilade'),
+  decouverte: tx('une attaque à la découverte'), mat: tx('un mat'), prise: tx('une pièce à prendre') });
+const MOTIF_SEUL = () => ({ fourchette: tx('fourchette'), clouage: tx('clouage'), enfilade: tx('enfilade'),
+  decouverte: tx('attaque à la découverte'), mat: tx('mat'), prise: tx('pièce en prise') });
+function niveauxMotifs() { S.d.botNiveaux = S.d.botNiveaux || {}; return S.d.botNiveaux; }
+const niveauDe = (m) => ((niveauxMotifs()[m] || {}).niveau || 1);
+const fmtNiv = (n) => String(Math.round(n * 100) / 100).replace('.', typeof I18N !== 'undefined' ? I18N.dec : ',');
+/* La finale : moins de 27 points de pièces sur l'échiquier, pions et rois
+   non comptés (dame 9, tour 5, fou et cavalier 3). */
+function pointsPieces(jeu) {
+  const v = { q: 9, r: 5, b: 3, n: 3 };
+  return jeu.board().flat().reduce((a, x) => a + (x ? (v[x.type] || 0) : 0), 0);
+}
+const estFinale = (jeu) => pointsPieces(jeu) <= 26;
 
 function partiesBot() { S.d.partiesBot = S.d.partiesBot || {}; return S.d.partiesBot; }
 const nomCamp = (c) => (c === 'w' ? tx('les blancs') : tx('les noirs'));
@@ -61,6 +83,7 @@ function vueJouer() {
   if (J.enCours || J.fin) { $('#jouer-accueil').hidden = true; $('#jouer-partie').hidden = false; return; }
   $('#jouer-accueil').hidden = false; $('#jouer-partie').hidden = true;
   brancherJouer();
+  if (typeof majAdversaires === 'function') { majAdversaires(); rendrePerso(); }
   if (!J.eloManuel) majEloAuto();
   majCompris();
   rendreListeBot();
@@ -78,6 +101,7 @@ function brancherJouer() {
   $('#jouer-pendule').value = S.d.reglages.botPendule || '';
   $('#jouer-pendule').addEventListener('change', () => { S.d.reglages.botPendule = $('#jouer-pendule').value; sauver(); });
   $('#jouer-go').addEventListener('click', lancerPartie);
+  if ($('#jouer-adversaire')) $('#jouer-adversaire').addEventListener('change', () => { choisirAdversaire(); majElo(J.elo); });
   $('#jeu-tourner').addEventListener('click', () => {
     J.plateau.orientation = J.plateau.orientation === 'w' ? 'b' : 'w'; J.plateau.dessiner(); majPendules();
   });
@@ -99,11 +123,25 @@ function majElo(v) {
   $('#jouer-elo-val').textContent = '≈ ' + v;
   const aide = $('#jouer-elo-aide'); aide.innerHTML = '';
   const a = J.auto || eloAuto();
+  const perso = adversaireChoisi() !== 'standard';
   ajouterA(aide,
     J.eloManuel && v !== a.elo ? tx('Ton niveau : {0}. ', [a.elo]) : texteAuto(a) + ' ',
-    tx('Le bot fait autant de gaffes, d’erreurs et d’imprécisions qu’un joueur de ce niveau, mesuré sur des parties rapides chess.com.'),
-    v > 500 ? tx(' Au-delà de 500, c’est une estimation.') : '',
+    perso ? tx('Le bot personnalisé joue comme tes adversaires ; la force décale un peu son jeu, comme il a vu leurs coups changer avec leur Elo.')
+      : tx('Le bot fait autant de gaffes, d’erreurs et d’imprécisions qu’un joueur de ce niveau, mesuré sur des parties rapides chess.com.'),
+    v > 500 && !perso ? tx(' Au-delà de 500, c’est une estimation.') : '',
     J.eloManuel && v !== a.elo ? el('button', { class: 'lien', onclick: () => { J.eloManuel = false; majEloAuto(); } }, tx('Revenir à ton niveau')) : null);
+}
+
+/* standard, perso ou coriace (ces deux-là seulement si le bot personnalisé existe) */
+function adversaireChoisi() {
+  const s = $('#jouer-adversaire');
+  const v = s ? s.value : 'standard';
+  return v !== 'standard' && typeof botPerso === 'function' && botPerso() ? v : 'standard';
+}
+const NOMS_ADVERSAIRES = () => ({ perso: tx('ton bot personnalisé'), coriace: tx('ton bot coriace') });
+/* Ce que voit le bot personnalisé : la force réglée et sa pendule. */
+function contextePerso() {
+  return { elo: J.elo, reste: J.pendule ? J.temps[J.jeu.turn()] / 1000 : null };
 }
 
 /* Les répertoires de l'utilisateur, pour reconnaître « mon répertoire X ». */
@@ -116,33 +154,75 @@ function majCompris() {
   J.demande = r;
   z.innerHTML = '';
   const choixCamp = $('#jouer-camp').value;
-  const camp = choixCamp !== 'auto' ? choixCamp : (r.type === 'ouverture' ? r.camp : null);
+  const camp = choixCamp !== 'auto' ? choixCamp : (r.type === 'ouverture' || r.camp ? r.camp : null);
   $('#jouer-camp').options[0].textContent = r.type === 'ouverture'
-    ? tx('selon l’ouverture ({0})', [nomCamp(r.camp)]) : tx('au hasard');
-  if (r.type === 'ouverture') {
+    ? tx('selon l’ouverture ({0})', [nomCamp(r.camp)]) : (r.camp ? nomCamp(r.camp) : tx('au hasard'));
+  const themes = [].concat((r.motifs || []).map(m => NOMS_MOTIFS()[m]), r.finales ? [tx('Finales')] : []);
+  const ligneThemes = () => {
+    const out = [];
+    if (r.motifs && r.motifs.length) out.push(el('p', { class: 'sous', style: 'margin:4px 0 0' },
+      tx('De temps en temps, le bot te laissera une occasion : {0}. À toi de la voir. Ton niveau dans chaque motif monte quand tu trouves, et les occasions deviennent plus fines.',
+        [r.motifs.map(m => NOMS_MOTIFS()[m].toLowerCase()).join(', ')])));
+    if (r.finales) out.push(el('p', { class: 'sous', style: 'margin:4px 0 0' },
+      tx('Le bot échange volontiers les pièces et se trompe moins avant la finale, pour que la partie y arrive.')));
+    return out;
+  };
+  if (r.type === 'jeu') {
+    z.append(el('p', { class: 'compris ok' },
+      el('span', { class: 'tag grn' }, tx('compris')), ' ',
+      el('strong', {}, themes.join(' · ')),
+      ' — ', camp ? tx('tu joues {0}', [nomCamp(camp)]) : tx('ta couleur est tirée au hasard'), '.'), ...ligneThemes());
+  } else if (r.type === 'ouverture') {
     const nom = r.entree ? tx(r.entree.nom) : r.rep.nom;
     z.append(el('p', { class: 'compris ok' },
       el('span', { class: 'tag grn' }, tx('compris')), ' ',
       el('strong', {}, nom), r.ligne ? ' · ' + tx(r.ligne.nom) : '',
+      themes.length ? el('strong', {}, ' · ' + themes.join(' · ')) : null,
       ' — ', tx('tu joues {0}', [nomCamp(camp)]), '.',
       r.rep ? ' ' + tx('Le bot suit ton répertoire « {0} ».', [r.rep.nom]) : ''));
     const campLigne = (r.ligne && r.ligne.camp) || (r.entree && r.entree.camp);
     if (r.entree && camp !== campLigne)
       z.append(el('p', { class: 'sous', style: 'margin:4px 0 0' },
         tx('C’est le bot qui joue cette ouverture : tu t’entraînes à la rencontrer.')));
+    z.append(...ligneThemes());
   } else if (r.type === 'motif') {
     z.append(el('p', { class: 'compris' },
       el('span', { class: 'tag amb' }, tx('pas encore')), ' ',
-      tx('Les thèmes tactiques (fourchettes, enfilades, finales…) arrivent plus tard. Pour l’instant, le bot fait travailler une ouverture ; « Lancer la partie » démarre une partie libre.')));
+      tx('Ce thème n’est pas encore là. Le bot sait faire travailler une ouverture, les finales et ces tactiques :')),
+    suggestionsThemes());
   } else if (r.type === 'aucun') {
     z.append(el('p', { class: 'compris' },
       el('span', { class: 'tag amb' }, tx('pas reconnu')), ' ',
-      tx('Je n’ai pas reconnu d’ouverture. Choisis-en une, ou lance une partie libre :')),
-    suggestionsOuvertures());
+      tx('Je n’ai pas reconnu de thème. Choisis-en un, ou lance une partie libre :')),
+    suggestionsThemes(), suggestionsOuvertures());
   } else {
     z.append(el('p', { class: 'compris' }, tx('Sans demande, c’est une partie libre, sans thème. Quelques idées :')),
-      suggestionsOuvertures());
+      suggestionsThemes(), suggestionsOuvertures());
   }
+  rendreNiveaux();
+}
+/* « fourchettes et clouages » : les puces ajoutent au texte au lieu de le remplacer */
+function suggestionsThemes() {
+  const z = el('div', { class: 'suggestions' });
+  const ajouter = (t) => {
+    const c = $('#jouer-texte'), v = c.value.trim();
+    c.value = v && Bot.comprendre(v, repsPourBot()).type !== 'aucun' ? v + ', ' + t.toLowerCase() : t;
+    majCompris();
+  };
+  z.append(el('div', { class: 'sugg-ligne' }, el('span', { class: 'sugg-camp' }, tx('Tactiques')),
+    ...Bot.THEMES.map(t => el('button', { class: 'puce', onclick: () => ajouter(tx(t.nom)) }, tx(t.nom))),
+    el('button', { class: 'puce', onclick: () => ajouter(tx('Toutes les tactiques')) }, tx('Toutes les tactiques')),
+    el('button', { class: 'puce', onclick: () => ajouter(tx('Finales')) }, tx('Finales'))));
+  return z;
+}
+function rendreNiveaux() {
+  const z = $('#jouer-niveaux'); if (!z) return;
+  const n = niveauxMotifs(), l = Bot.THEMES.filter(t => n[t.id] && n[t.id].vus);
+  z.innerHTML = '';
+  if (!l.length) return;
+  z.append(el('span', { class: 'sugg-camp' }, tx('Tes niveaux (de 1 à 3)')),
+    ...l.map(t => el('span', { class: 'tag', title: tx('{0} trouvée(s) sur {1}', [n[t.id].trouves || 0, n[t.id].vus]) },
+      tx(t.nom) + ' ' + fmtNiv(n[t.id].niveau))));
 }
 function suggestionsOuvertures() {
   const z = el('div', { class: 'suggestions' });
@@ -162,10 +242,15 @@ const RAISONS = () => ({
 function nomTheme(p) {
   const b = p.bot || {};
   const e = b.theme && Bot.LIVRE.find(x => x.id === b.theme.id);
-  if (e) return tx(e.nom) + (b.theme.ligne ? ' · ' + tx(b.theme.ligne) : '');
-  if (b.repNom) return b.repNom;
-  return tx('partie libre');
+  const morceaux = [];
+  if (e) morceaux.push(tx(e.nom) + (b.theme.ligne ? ' · ' + tx(b.theme.ligne) : ''));
+  else if (b.repNom) morceaux.push(b.repNom);
+  for (const m of b.motifs || []) morceaux.push(NOMS_MOTIFS()[m]);
+  if (b.finales) morceaux.push(tx('Finales'));
+  return morceaux.length ? morceaux.join(' · ') : tx('partie libre');
 }
+const tagBot = (p) => (p.bot && p.bot.perso === 'coriace' ? tx('bot coriace {0}', [p.eloAdv])
+  : p.bot && p.bot.perso ? tx('bot perso {0}', [p.eloAdv]) : tx('bot {0}', [p.eloAdv]));
 function textePendule(pd) {
   if (!pd) return tx('sans pendule');
   return pd.inc ? tx('{0} min + {1} s', [pd.base / 60, pd.inc]) : tx('{0} min', [pd.base / 60]);
@@ -186,7 +271,7 @@ function rendreListeBot() {
         el('span', { class: 'tag ' + r[0] }, r[1]),
         el('span', { class: 'tag' }, p.couleur === 'w' ? tx('blancs') : tx('noirs')),
         el('strong', {}, nomTheme(p)),
-        el('span', { class: 'tag' }, tx('bot {0}', [p.eloAdv])),
+        el('span', { class: 'tag' }, tagBot(p)),
         el('span', { class: 'quand' }, d.toLocaleDateString(LOCALE_JEU(), { weekday: 'short', day: 'numeric', month: 'short' })
           + ' · ' + d.toLocaleTimeString(LOCALE_JEU(), { hour: '2-digit', minute: '2-digit' }))),
       el('p', { style: 'margin:0 0 8px' }, tx('{0} coups · {1} · {2}', [Math.ceil(((p.sans || '').split(' ').filter(Boolean).length) / 2),
@@ -209,22 +294,34 @@ function repLie(r) {
 }
 function lancerPartie(opts) {
   if (DEGRADE) { $('#jouer-etat').textContent = tx('Le bot a besoin de Stockfish : lance l’entraîneur avec son serveur local.'); return; }
+  if (typeof BP !== 'undefined' && BP.enCours) { $('#jouer-etat').textContent = tx('Attends la fin de l’apprentissage du bot personnalisé (plus bas), ou arrête-le.'); return; }
   opts = opts && !(opts instanceof Event) ? opts : {};
   const r = opts.demande || J.demande || Bot.comprendre($('#jouer-texte').value, repsPourBot());
   const choixCamp = opts.camp || $('#jouer-camp').value;
   const themeOk = r.type === 'ouverture';
-  const camp = choixCamp !== 'auto' ? choixCamp : (themeOk ? r.camp : (Math.random() < 0.5 ? 'w' : 'b'));
+  const motifs = new Set(r.type === 'ouverture' || r.type === 'jeu' ? (r.motifs || []) : []);
+  const finales = (r.type === 'ouverture' || r.type === 'jeu') && !!r.finales;
+  const camp = choixCamp !== 'auto' ? choixCamp : (themeOk || r.camp ? r.camp : (Math.random() < 0.5 ? 'w' : 'b'));
   const pd = PENDULES[opts.pendule !== undefined ? opts.pendule : $('#jouer-pendule').value] || null;
   const entree = themeOk ? r.entree : null;
   const rep = themeOk ? repLie(r) : null;
   const exemple = entree && entree.rep ? (window.REPS_INITIAUX || []).find(x => x.id === entree.rep) : null;
   /* partie libre : le bot pioche ses premiers coups dans tout le livre */
+  /* bot personnalisé : ses poids ; en partie libre, il ouvre comme tes adversaires */
+  const adv = opts.adversaire && opts.adversaire !== 'standard' && typeof botPerso === 'function' && botPerso() ? opts.adversaire
+    : (opts.adversaire ? 'standard' : adversaireChoisi());
+  const bp = adv !== 'standard' ? botPerso() : null;
+  J.perso = bp ? (adv === 'coriace' ? bp.mc || { w: bp.wc } : bp.m || { w: bp.w }) : null;
+  J.persoType = bp ? adv : null;
+  const livreAdv = bp ? Bot.arbreDuLivre(bp.livre, adv === 'coriace') : null;
   J.arbre = themeOk
     ? Bot.arbre({ entree, ligne: r.ligne, aretesRep: rep ? rep.aretes : null, aretesExemple: exemple && !rep ? exemple.aretes : null })
-    : Bot.arbre({ entree: { lignes: Bot.LIVRE.flatMap(e => e.lignes) }, ligne: null });
+    : (livreAdv && livreAdv.size ? livreAdv : Bot.arbre({ entree: { lignes: Bot.LIVRE.flatMap(e => e.lignes) }, ligne: null }));
   Object.assign(J, {
     jeu: new Chess(), enCours: true, botPense: false, jeton: J.jeton + 1, camp,
     elo: opts.elo || J.elo, entree, ligne: themeOk ? r.ligne : null, rep, libre: !themeOk,
+    motifs, finales, occasions: [], occasionEnCours: null, dernierCadeau: -99,
+    niveauxAvant: Object.fromEntries([...motifs].map(m => [m, niveauDe(m)])),
     pendule: pd, temps: { w: (pd ? pd.base : BASE_SANS_PENDULE) * 1000, b: (pd ? pd.base : BASE_SANS_PENDULE) * 1000 },
     depuis: Date.now(), durees: [], indices: 0, sortie: null, fin: null, sortieMsg: null,
   });
@@ -234,8 +331,12 @@ function lancerPartie(opts) {
   $('#jouer-accueil').hidden = true; $('#jouer-partie').hidden = false;
   $('#jeu-fin').innerHTML = '';
   $('#jeu-abandon').hidden = false; $('#jeu-abandon').disabled = false;
-  $('#jeu-titre').textContent = themeOk ? (entree ? tx(entree.nom) : rep.nom) + (J.ligne ? ' · ' + tx(J.ligne.nom) : '') : tx('Partie libre');
-  $('#jeu-sous').textContent = tx('Tu joues {0} contre le bot ({1}) · {2}', [nomCamp(camp), J.elo, textePendule(pd)]);
+  const titre = [].concat(themeOk ? [(entree ? tx(entree.nom) : rep.nom) + (J.ligne ? ' · ' + tx(J.ligne.nom) : '')] : [],
+    [...motifs].map(m => NOMS_MOTIFS()[m]), finales ? [tx('Finales')] : []);
+  $('#jeu-titre').textContent = titre.length ? titre.join(' · ') : tx('Partie libre');
+  $('#jeu-sous').textContent = J.perso
+    ? tx('Tu joues {0} contre {1} ({2}) · {3}', [nomCamp(camp), NOMS_ADVERSAIRES()[J.persoType], J.elo, textePendule(pd)])
+    : tx('Tu joues {0} contre le bot ({1}) · {2}', [nomCamp(camp), J.elo, textePendule(pd)]);
   J.plateau.persistantes = {};
   J.plateau.position(J.jeu.fen(), camp);
   clearInterval(J.minuteur);
@@ -249,11 +350,13 @@ function rejouerTheme(p) {
   const e = b.theme && Bot.LIVRE.find(x => x.id === b.theme.id);
   const ligne = e && b.theme.ligne ? e.lignes.find(l => l.nom === b.theme.ligne) : null;
   const rep = b.rep ? repDe(b.rep) : null;
-  const demande = e || rep ? { type: 'ouverture', entree: e || null, ligne, rep: !e && rep ? { id: rep.id, nom: rep.nom, camp: rep.camp } : null, camp: p.couleur } : { type: 'aucun' };
+  const extra = { motifs: b.motifs || [], finales: !!b.finales };
+  const demande = e || rep ? Object.assign({ type: 'ouverture', entree: e || null, ligne, rep: !e && rep ? { id: rep.id, nom: rep.nom, camp: rep.camp } : null, camp: p.couleur }, extra)
+    : (extra.motifs.length || extra.finales ? Object.assign({ type: 'jeu', camp: p.couleur }, extra) : { type: 'aucun' });
   onglet('jouer');
   if (!J.eloManuel) majEloAuto();
   const pd = b.pendule ? Object.keys(PENDULES).find(k => PENDULES[k].base === b.pendule.base && PENDULES[k].inc === b.pendule.inc) || '' : '';
-  lancerPartie({ demande, camp: p.couleur, pendule: pd, elo: J.elo });
+  lancerPartie({ demande, camp: p.couleur, pendule: pd, elo: J.elo, adversaire: b.perso || 'standard' });
 }
 
 /* ------------------------------------------------------------- les coups */
@@ -311,7 +414,8 @@ async function jouerBot() {
       if (jeton !== J.jeton) return;
       J.nbLignes = lignes.length;
       const h = J.jeu.history({ verbose: true });
-      const ch = Bot.choisir(lignes, fen, J.elo, ply, h.length ? h[h.length - 1] : null);
+      verifierOccasion(Math.max(...lignes.map(l => l.cp)));
+      const ch = choisirCoupBot(lignes, fen, ply, h.length ? h[h.length - 1] : null);
       uci = ch && ch.uci;
     }
   } catch (e) { console.warn('bot', e); }
@@ -329,6 +433,45 @@ async function jouerBot() {
   J.plateau.animerVers(J.jeu.fen(), mv);
   if (!finSiBesoin()) J.plateau.onCoup = coupHumainPlateau;
   majEcran();
+}
+/* Le coup du bot hors du livre : de temps en temps une occasion tactique,
+   sinon un coup de son niveau. */
+function choisirCoupBot(lignes, fen, ply, prec) {
+  if (J.motifs.size && ply >= 10 && ply - J.dernierCadeau >= attenteCadeau() && Math.random() < PROBA_CADEAU) {
+    const niveaux = Object.fromEntries([...J.motifs].map(m => [m, niveauDe(m)]));
+    const c = Bot.choisirOccasion(Bot.occasions(lignes, fen, J.motifs, prec, ply), niveaux);
+    if (c) {
+      J.dernierCadeau = ply;
+      const o = { ply, motif: c.motif, niveau: c.niveau, sol: c.sol, solSan: c.solSan, gain: c.perte,
+        cp: c.cp, meilleur: c.meilleur, trouve: null };
+      J.occasions.push(o); J.occasionEnCours = o;
+      return { uci: c.uci, sorte: 'cadeau' };
+    }
+  }
+  const reglage = J.finales ? { simplifier: true, avantFinale: !estFinale(J.jeu) } : null;
+  if (J.perso && typeof Bot.choisirPerso === 'function')
+    return Bot.choisirPerso(lignes, fen, prec, ply, J.perso, contextePerso(), Math.random, reglage);
+  return Bot.choisir(lignes, fen, J.elo, ply, prec, Math.random, reglage);
+}
+function attenteCadeau() {
+  return [...J.motifs].every(m => niveauDe(m) >= 2.5) ? ATTENTE_MAITRISE : ATTENTE_CADEAU;
+}
+/* As-tu saisi l'occasion ? On le sait au coup suivant du bot : si son
+   meilleur score est retombé près de celui qu'il avait concédé, oui. */
+function verifierOccasion(meilleurApres, mat) {
+  const o = J.occasionEnCours;
+  if (!o) return;
+  const h = J.jeu.history({ verbose: true });
+  if (h.length < o.ply + 2) return;
+  J.occasionEnCours = null;
+  const r = h[o.ply + 1];
+  o.joue = r.san;
+  o.trouve = !!mat || uciDe(r) === o.sol
+    || (o.motif !== 'mat' && meilleurApres !== undefined && meilleurApres <= o.cp + 0.4 * (o.meilleur - o.cp));
+  const n = niveauxMotifs(), x = n[o.motif] || { niveau: 1, vus: 0, trouves: 0 };
+  x.niveau = Bot.majNiveau(x.niveau, o.trouve); x.vus++; if (o.trouve) x.trouves++;
+  n[o.motif] = x;
+  sauver();
 }
 function indiceLigne() {
   if (!J.enCours || J.botPense || J.jeu.turn() !== J.camp) return;
@@ -424,6 +567,7 @@ function finSiBesoin() {
 function terminer({ gagnant, raison }) {
   if (!J.enCours) return;
   /* le temps du dernier coup en cours (abandon, chute au temps) n'est pas un coup */
+  if (raison === 'mat' && gagnant === J.camp) verifierOccasion(undefined, true);
   J.enCours = false; J.botPense = false; J.jeton++;
   clearInterval(J.minuteur);
   if (J.plateau) J.plateau.onCoup = null;
@@ -465,7 +609,7 @@ function enregistrerPartie(score, resultat, raison) {
   const id = 'bot:' + Date.now().toString(36);
   const brut = {
     url: id, date: aujourdhui(), fin, couleur: J.camp, score, resultat,
-    adversaire: 'Bot ' + J.elo, elo: null, eloAdv: J.elo, termination: raison, base,
+    adversaire: (J.persoType === 'coriace' ? 'Bot coriace ' : J.perso ? 'Bot perso ' : 'Bot ') + J.elo, elo: null, eloAdv: J.elo, termination: raison, base,
     sans: sans.join(' '), clks,
   };
   const d = deplier(brut);
@@ -477,6 +621,14 @@ function enregistrerPartie(score, resultat, raison) {
     theme: J.entree ? { id: J.entree.id, ligne: J.ligne ? J.ligne.nom : null } : null,
     rep: J.rep ? J.rep.id : null, repNom: !J.entree && J.rep ? J.rep.nom : null,
   };
+  if (J.motifs.size) {
+    p.bot.motifs = [...J.motifs];
+    p.bot.occasions = J.occasions.map(o => ({ ply: o.ply, motif: o.motif, niveau: o.niveau, sol: o.sol,
+      solSan: o.solSan, gain: o.gain, trouve: o.trouve, joue: o.joue || null }));
+    p.bot.niveaux = Object.fromEntries([...J.motifs].map(m => [m, [J.niveauxAvant[m] || 1, niveauDe(m)]]));
+  }
+  if (J.finales) p.bot.finales = true;
+  if (J.perso) p.bot.perso = J.persoType;
   partiesBot()[id] = p;
   sauver();
   return p;
@@ -486,14 +638,31 @@ function enregistrerPartie(score, resultat, raison) {
    Appelé par le bilan (bilan.js) pour une partie contre le bot : ce que tu
    voulais travailler, d'abord. `B` : l'état du bilan (partie, modèle, évals). */
 function bilanTheme(B) {
-  const p = B.p, info = p.bot || {}, M = B.M, moi = p.couleur;
+  const p = B.p, info = p.bot || {};
   const z = el('div', { class: 'bil-theme' });
   const entree = info.theme && Bot.LIVRE.find(e => e.id === info.theme.id);
   const rep = info.rep ? repDe(info.rep) : null;
-  if (!entree && !rep) {
+  const tactique = !!(info.motifs && info.motifs.length), finale = !!info.finales;
+  if (!entree && !rep && !tactique && !finale) {
     z.append(el('p', { style: 'margin:0' }, tx('Partie libre, sans thème : le bilan ci-dessous porte sur toute la partie.')));
     return z;
   }
+  if (entree || rep) bilanOuverture(B, z, entree, rep);
+  if (tactique) bilanTactique(B, z);
+  if (finale) bilanFinale(B, z);
+  const lecon = entree && entree.rep && typeof lecons === 'function' ? lecons().find(l => l.rep === entree.rep) : null;
+  ajouterA(z, el('div', { class: 'ligne-ctrl', style: 'margin:12px 0 0' },
+    el('button', { class: 'b', onclick: () => rejouerTheme(p) }, tx('Rejouer ce thème')),
+    lecon ? el('button', { class: 'b g', onclick: () => ouvrirLecon(lecon.id) }, tx('La leçon : {0}', [lecon.titre])) : null,
+    rep ? el('button', { class: 'b g', onclick: () => ouvrirRepEditeur(rep.id) }, tx('Ton répertoire dans l’éditeur')) : null));
+  return z;
+}
+const sousTitre = (t) => el('p', { class: 'bil-sous-theme' }, el('strong', {}, t));
+
+/* --- l'ouverture demandée */
+function bilanOuverture(B, z, entree, rep) {
+  const p = B.p, info = p.bot || {}, M = B.M, moi = p.couleur;
+  if (info.motifs && info.motifs.length || info.finales) z.append(sousTitre(tx('L’ouverture')));
   const ligne = entree && info.theme.ligne ? entree.lignes.find(l => l.nom === info.theme.ligne) : null;
   const nom = entree ? tx(entree.nom) : rep.nom;
   const sans = M.coups.map(k => k.san);
@@ -591,12 +760,92 @@ function bilanTheme(B) {
 
   /* 5. l'idée de l'ouverture */
   if (entree) z.append(el('p', { style: 'margin:8px 0 0' }, el('strong', {}, tx('L’idée de l’ouverture. ')), tx(entree.idee)));
+}
 
-  /* 6. la suite */
-  const lecon = entree && entree.rep && typeof lecons === 'function' ? lecons().find(l => l.rep === entree.rep) : null;
-  z.append(el('div', { class: 'ligne-ctrl', style: 'margin:12px 0 0' },
-    el('button', { class: 'b', onclick: () => rejouerTheme(p) }, tx('Rejouer ce thème')),
-    lecon ? el('button', { class: 'b g', onclick: () => ouvrirLecon(lecon.id) }, tx('La leçon : {0}', [lecon.titre])) : null,
-    rep ? el('button', { class: 'b g', onclick: () => ouvrirRepEditeur(rep.id) }, tx('Ton répertoire dans l’éditeur')) : null));
-  return z;
+/* --- les tactiques : les occasions laissées par le bot, puis les autres */
+function bilanTactique(B, z) {
+  const p = B.p, info = p.bot || {}, M = B.M, moi = p.couleur;
+  const noms = NOMS_MOTIFS(), voulus = new Set(info.motifs);
+  const mv = (k, cls) => Expl.mvTxt(k.fen, k.san, cls);
+  z.append(sousTitre(tx('Les occasions que le bot t’a laissées')));
+  const occ = info.occasions || [];
+  if (!occ.length) z.append(el('p', { style: 'margin:0 0 8px' }, tx('Aucune cette fois : la partie n’en a pas donné l’occasion. Les occasions viennent hors des premiers coups, au plus une fois tous les quatre coups du bot.')));
+  const liste = el('ul', { class: 'bil-principes' });
+  for (const o of occ) {
+    const k = M.coups[o.ply], suite = M.coups[o.ply + 1];
+    if (!k) continue;
+    const sol = suite ? Expl.mvTxt(suite.fen, o.solSan, 'good') : `<span class="mv good">${fr(o.solSan)}</span>`;
+    const quoi = tx('Coup {0} : après {1}, il y avait {2} avec {3}.', [k.numero, mv(k, ''), MOTIF_UN()[o.motif], sol]);
+    const verdict = o.trouve === null || o.trouve === undefined ? tx(' La partie s’est arrêtée avant ta réponse.')
+      : o.trouve ? (suite && suite.san === o.solSan ? tx(' Trouvée.') : tx(' Trouvée autrement : {0} gagne aussi.', [suite ? mv(suite, 'good') : '']))
+        : tx(' Ratée : tu as joué {0}.', [suite ? mv(suite, 'bad') : '']);
+    liste.append(el('li', {}, el('span', { html: quoi + verdict }), ' ', boutonCoup(o.ply)));
+  }
+  if (occ.length) z.append(liste);
+  const niv = info.niveaux || {};
+  const n = Object.keys(niv);
+  if (n.length) z.append(el('p', { class: 'sous', style: 'margin:0 0 8px' },
+    tx('Ton niveau : {0}.', [n.map(m => `${noms[m].toLowerCase()} ${fmtNiv(niv[m][0])} → ${fmtNiv(niv[m][1])}`).join(' · ')])));
+  /* les occasions que la partie a données d'elle-même (il faut l'analyse) */
+  if (!M.aEvals || !B.bests) return;
+  const offertes = new Set(occ.map(o => o.ply + 1));
+  const autres = [];
+  for (const nt of M.notes) {
+    if (!nt.mien || nt.perte === null || offertes.has(nt.i)) continue;
+    const k = M.coups[nt.i], best = B.bests[nt.i];
+    if (!best) continue;
+    const prec = nt.i ? M.coups[nt.i - 1].m : null;
+    const a = Bot.motifsDuCoup(k.fen, best, prec);
+    const ok = a.motifs.filter(m => voulus.has(m));
+    if (!ok.length) continue;
+    const trouvee = k.uci === best;
+    if (!trouvee && nt.perte < 150) continue;          // le meilleur coup ne gagnait presque rien de plus
+    autres.push({ i: nt.i, motif: ok[0], trouvee, best: Expl.sanDe(k.fen, best) });
+  }
+  if (!autres.length) return;
+  z.append(sousTitre(tx('Les autres occasions de la partie')));
+  const l2 = el('ul', { class: 'bil-principes' });
+  for (const x of autres.slice(0, 8)) {
+    const k = M.coups[x.i];
+    l2.append(el('li', {}, el('span', { html: x.trouvee
+      ? tx('Coup {0} : {1}, bien vu.', [k.numero, mv(k, 'good') + ' (' + MOTIF_SEUL()[x.motif] + ')'])
+      : tx('Coup {0} : {1} au lieu de {2} ({3}).', [k.numero, mv(k, 'bad'), Expl.mvTxt(k.fen, x.best, 'good'), MOTIF_SEUL()[x.motif]]) }),
+    ' ', boutonCoup(Math.max(0, x.i - 1))));
+  }
+  z.append(l2);
+}
+
+/* --- la finale : y est-on arrivé, et qu'en as-tu fait */
+function bilanFinale(B, z) {
+  const p = B.p, M = B.M, moi = p.couleur;
+  z.append(sousTitre(tx('La finale')));
+  const j = new Chess(); let entree = -1;
+  for (let i = 0; i < M.coups.length; i++) {
+    try { j.move(M.coups[i].san); } catch (e) { break; }
+    if (estFinale(j)) { entree = i; break; }
+  }
+  if (entree < 0) {
+    z.append(el('p', { style: 'margin:0 0 8px' }, tx('La partie s’est terminée avant la finale : il restait {0} points de pièces au dernier coup (la finale commence sous 27).',
+      [pointsPieces(j)])));
+    return;
+  }
+  const k = M.coups[entree];
+  const sg = moi === 'w' ? 1 : -1;
+  const ev = B.evals && B.evals[entree + 1] !== undefined ? sg * B.evals[entree + 1] : null;
+  const res = p.score === 1 ? tx('gagnée') : p.score === .5 ? tx('nulle') : tx('perdue');
+  z.append(el('p', { style: 'margin:0 0 8px' },
+    tx('Finale atteinte au coup {0}', [k.numero]),
+    ev !== null ? tx(', avec {0} pour toi', [evalTexte(ev)]) : '', '. ',
+    tx('Résultat : {0}.', [res]), ' ', boutonCoup(entree)));
+  if (ev !== null) {
+    const verdict = ev >= 200 && p.score < 1 ? tx('Tu étais mieux en entrant en finale et tu ne l’as pas gagnée : c’est la conversion qu’il faut travailler.')
+      : ev <= -200 && p.score > 0 ? tx('Tu étais moins bien en entrant en finale et tu as sauvé des points : belle défense.')
+        : ev >= 200 ? tx('Avantage converti.') : '';
+    if (verdict) z.append(el('p', { style: 'margin:0 0 8px' }, verdict));
+  }
+  if (!M.aEvals) return;
+  const erreurs = M.notes.filter(n => n.mien && n.i >= entree && n.perte !== null && n.perte >= 100);
+  z.append(el('p', { style: 'margin:0 0 8px' }, erreurs.length
+    ? [el('strong', {}, erreurs.length > 1 ? tx('{0} erreurs en finale : ', [erreurs.length]) : tx('Une erreur en finale : ')), ...erreurs.slice(0, 8).map(n => boutonCoup(n.i))]
+    : tx('Aucune erreur d’un point ou plus en finale.')));
 }

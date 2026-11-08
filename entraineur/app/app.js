@@ -1182,6 +1182,10 @@ async function lancerImport() {
     const ajout = Object.keys(S.d.exos).length - avant;
     if (ajout > 0) log(tx('{0} exercice(s) ajouté(s) à l’entraînement.', [ajout]));
     sauver();
+    /* le bot personnalisé apprend les nouvelles parties */
+    if (!DEGRADE && nouvelles.length && typeof majBotPersoApresImport === 'function') {
+      await majBotPersoApresImport(nouvelles, S.moteur, log);
+    }
     log(tx('terminé.'));
     const derniere = nouvelles.length ? nouvelles[nouvelles.length - 1].date : depuis;
     vueJour(derniere);

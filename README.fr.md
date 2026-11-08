@@ -30,8 +30,14 @@ Tout tourne sur ta machine : il n'y a ni compte, ni serveur distant, ni publicit
   pièges, ses plans et plus de 100 quiz.
 - **Jouer contre le bot** : écris ce que tu veux travailler (« la défense française »,
   « contre la sicilienne »), joue-le contre un bot réglé sur ton niveau, puis reçois un
-  bilan centré sur cette ouverture. Le bot fait autant de gaffes et d'erreurs qu'un
-  joueur de ton Elo.
+  bilan centré sur cette ouverture. Demande des tactiques (« les fourchettes et les
+  clouages ») : le bot te laisse de temps en temps une occasion à trouver, avec un
+  niveau par motif ; demande les finales : il échange les pièces. Le bot fait autant de
+  gaffes et d'erreurs qu'un joueur de ton Elo.
+- **Bot personnalisé** : il récupère toutes tes parties, fait noter par Stockfish les
+  coups possibles de tes adversaires, et apprend comment ils choisissent (prises,
+  échecs, roque, ce qu'ils ratent, quand ils gaffent). Ensuite il joue comme eux, et
+  chaque import le réentraîne.
 - **Progression** jour par jour et une courbe Elo par site.
 - **Réglage de niveau** (débutant, intermédiaire, confirmé), qui ajuste le jugement des
   parties.

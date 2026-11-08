@@ -115,12 +115,15 @@ il revient le lendemain.
 Une partie contre le bot, sur ce que tu veux travailler.
 
 1. Écris ta demande : « j'aimerais travailler la défense française », « la Najdorf »,
-   « contre la sicilienne », « mon répertoire Londres »… L'application affiche ce
-   qu'elle a compris : l'ouverture, la variante s'il y en a une, et la couleur que tu
-   joues. Elle connaît une trentaine d'ouvertures et tes propres répertoires. Les
-   thèmes tactiques (fourchettes, enfilades, finales) ne sont pas encore disponibles ;
-   sans ouverture reconnue, c'est une partie libre.
-2. Choisis ta couleur, la pendule et la force du bot. Par défaut, tu joues le camp qui
+   « contre la sicilienne », « mon répertoire Londres », « les fourchettes et les
+   clouages », « les finales », « la française et les fourchettes »… L'application
+   affiche ce qu'elle a compris : l'ouverture, la variante s'il y en a une, les
+   tactiques, les finales, et la couleur que tu joues. Elle connaît une trentaine
+   d'ouvertures, tes propres répertoires, six motifs tactiques (fourchettes, clouages,
+   enfilades, attaques à la découverte, mats, pièces en prise ; « les tactiques » les
+   prend tous) et les finales. Sans thème reconnu, c'est une partie libre.
+2. Choisis ta couleur, la pendule, l'adversaire (le bot standard, ou ton bot
+   personnalisé, plus bas) et la force du bot. Par défaut, tu joues le camp qui
    choisit l'ouverture : les noirs pour la française, les blancs pour l'italienne ;
    « contre la sicilienne » te donne les blancs. La pendule va de « sans pendule » à
    30 minutes.
@@ -138,6 +141,20 @@ gaffes. Le curseur la change pour une partie.
 Avec une pendule, le bot prend le temps de réflexion d'un joueur de ce niveau : en
 moyenne 8 secondes par coup en partie de 10 minutes, moins dans la ligne.
 
+**Les tactiques.** Quand tu demandes un motif, le bot te laisse de temps en temps une
+occasion : il ne pare pas une fourchette, il laisse un clouage ou un mat. Pas à chaque
+coup, sinon ça se verrait : hors des premiers coups, au plus une fois tous les quatre
+coups du bot, et pas à chaque fois que c'est possible. Chaque motif a un niveau, de 1
+à 3 : au niveau 1, la réponse gagnante est un coup forcé (un échec, une prise) ; au
+niveau 2, c'est un coup tranquille ; au niveau 3, elle vient en deux temps. Pour le
+mat : mat en 1, en 2, en 3. Le niveau monte d'un quart quand tu trouves, descend d'un
+quart quand tu rates. Tes niveaux s'affichent sous le formulaire.
+
+**Les finales.** Le bot échange volontiers les pièces, surtout les dames, et se trompe
+moins avant la finale, pour que la partie y arrive. La finale commence quand il reste
+moins de 27 points de pièces sur l'échiquier (dame 9, tour 5, fou et cavalier 3, pions
+et rois non comptés).
+
 Pendant la partie, « Coup de la ligne » montre le coup du livre tant que tu es dedans.
 « Abandonner » se confirme d'un second clic.
 
@@ -148,7 +165,73 @@ voulais travailler » :
   coûté si c'est toi qui en es sorti ;
 - tes erreurs sur tes 12 premiers coups ;
 - les principes : pièces mineures sorties avant le coup 10, roque, dame sortie tôt ;
-- l'idée de l'ouverture, et sa leçon quand il y en a une.
+- l'idée de l'ouverture, et sa leçon quand il y en a une ;
+- pour les tactiques : chaque occasion que le bot t'a laissée, trouvée ou ratée, ton
+  niveau avant et après, puis les autres occasions du même motif que la partie a
+  données d'elle-même ;
+- pour les finales : le coup où la partie y est arrivée, l'évaluation à ce moment, ce
+  que tu en as fait (avantage converti, défense réussie, ou conversion à travailler)
+  et tes erreurs dans la finale.
+
+### Le bot personnalisé
+
+Un bot qui choisit ses coups comme tes adversaires. « Créer mon bot personnalisé »,
+sous le formulaire :
+
+1. il récupère toutes tes parties : tes parties importées, toutes tes archives
+   chess.com depuis l'ouverture du compte, toutes tes parties Lichess. Il garde les
+   parties rapides contre des humains (pas le différé, pas les bots). Celles qui ne
+   sont pas importées servent seulement à l'apprentissage : elles ne rejoignent pas tes
+   parties ;
+2. dans chaque partie, il prend jusqu'à 8 positions où ton adversaire devait jouer
+   (après le 5e coup), 4 000 au plus en tout, et fait noter par Stockfish tous les coups
+   possibles, avec ta meilleure réponse à chacun ;
+3. il apprend comment tes adversaires choisissent parmi ces coups.
+
+Compte une demi-heure environ pour 500 parties, l'entraîneur ouvert. « Arrêter » en
+route garde ce qui est fait et apprend dessus (150 positions au moins).
+
+**Ce qu'il regarde.** Pour chaque coup possible, 35 indices, avec un poids chacun :
+ce que le coup perd selon Stockfish ; la prise et sa valeur ; la reprise ; l'échec ; le
+roque ; la pièce qui bouge ; le roi qui se promène et la dame sortie tôt ; la pièce
+attaquée mise à l'abri, le matériel laissé en prise, la menace laissée sans réponse ;
+la pièce gratuite ; la sous-promotion ; le coup qui crée une fourchette, un clouage,
+une enfilade ou une attaque à la découverte ; le mat ; la tactique ou le mat en 1
+laissé à ta meilleure réponse ; et la façon dont la perte pèse selon l'Elo de
+l'adversaire, sa pendule (moins d'une minute) et l'avancement de la partie. Il ne voit
+pas la position dans son ensemble.
+
+**Deux formes.** Le modèle simple donne un poids à chaque indice. À partir de 2 000
+positions, il essaie aussi un petit réseau à 8 neurones, qui combine les indices, et
+garde celui des deux qui prévoit le mieux sur des parties qu'il n'a pas vues. Sur 5 078
+positions d'un joueur à 450 Elo, le réseau l'emportait : premier choix juste 38,5 % du
+temps, contre 37,7 % pour le modèle simple et 36,0 % pour le bot standard. Avec 2 900
+positions, les deux faisaient jeu égal : il faut des positions, pas seulement des
+parties.
+
+**Ce qu'il affiche.** Sur des parties qu'il n'a jamais vues (validation croisée par
+partie) : combien de fois son premier choix est le coup que ton adversaire a joué,
+combien de fois ce coup est dans ses trois premiers choix, et la part de gaffes qu'il
+prévoit, à côté des mêmes mesures pour le bot standard. Puis ce qu'il a appris de tes
+adversaires, à coup comparable : « Roquer × 4,6 », « Laisser une menace sans réponse
+÷ 3,7 »…
+
+**Coriace.** La version coriace compte trois fois les parties que tu as perdues, et
+son livre d'ouvertures aussi : elle imite surtout les adversaires qui te battent.
+
+**Jouer contre lui.** Choisis « bot personnalisé » ou « bot personnalisé coriace »
+dans « Adversaire ». En partie libre, il ouvre comme tes adversaires : les coups
+qu'ils t'ont joués dans les six premiers coups, avec leur fréquence. Avec une
+ouverture demandée, il suit la ligne comme le bot standard, puis joue comme tes
+adversaires. Les occasions tactiques et le thème des finales marchent aussi avec lui.
+La force décale un peu son jeu, comme il a vu les coups de tes adversaires changer
+avec leur Elo.
+
+**Il continue d'apprendre.** À la fin de chaque import, les nouvelles parties sont
+analysées (quelques secondes par partie) et le réseau réentraîné ; le réseau repart du
+précédent, une minute environ. « Mettre à jour »
+va chercher les parties jouées depuis sur chess.com et Lichess. « Supprimer » efface
+le modèle et les positions analysées.
 
 Les parties contre le bot sont listées sous le formulaire. Elles ne comptent ni dans
 tes indicateurs, ni dans tes gaffes, ni dans ta progression. Une position ajoutée aux

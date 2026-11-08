@@ -29,8 +29,12 @@ Everything runs on your computer: no account, no remote server, no ads.
   quizzes.
 - **Play against the bot**: write what you want to work on (“the French Defence”,
   “against the Sicilian”), play it against a bot set to your level, then get a review
-  focused on that opening. The bot makes as many blunders and mistakes as a player of
-  your rating.
+  focused on that opening. Ask for tactics (“forks and pins”) and the bot now and then
+  leaves you a chance to find, with a level per motif; ask for endgames and it trades
+  down. The bot makes as many blunders and mistakes as a player of your rating.
+- **Personal bot**: it fetches all your games, has Stockfish score your opponents’
+  possible moves, and learns how they choose (captures, checks, castling, what they
+  miss, when they blunder). Then it plays like them, and every import retrains it.
 - **Progress** day by day and one Elo curve per site.
 - **Level setting** (beginner, intermediate, advanced), which adjusts how games are
   judged.

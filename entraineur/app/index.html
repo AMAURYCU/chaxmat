@@ -394,15 +394,24 @@
               <option value="900+10">15 min + 10 s</option>
               <option value="1800+0">30 min</option>
             </select></label>
+          <label class="champ">Adversaire
+            <select id="jouer-adversaire">
+              <option value="standard">bot standard</option>
+              <option value="perso">bot personnalisé</option>
+              <option value="coriace">bot personnalisé coriace</option>
+            </select></label>
           <label class="champ champ-elo">Force du bot <output id="jouer-elo-val">≈ 450</output>
             <input id="jouer-elo" type="range" min="200" max="2000" step="25" value="450"></label>
         </div>
         <p class="sous" id="jouer-elo-aide" style="margin:0 0 16px"></p>
+        <div id="jouer-niveaux" class="sugg-ligne" style="margin:-6px 0 14px"></div>
         <div class="ligne-ctrl" style="margin-bottom:0">
           <button class="b" id="jouer-go">Lancer la partie</button>
           <span class="sous" id="jouer-etat" role="status" style="margin:0"></span>
         </div>
       </div>
+      <h3 style="margin:28px 0 10px">Ton bot personnalisé</h3>
+      <div class="carte" id="jouer-perso"></div>
       <h3 style="margin:28px 0 10px">Tes parties contre le bot</h3>
       <div id="jouer-liste"></div>
     </div>
@@ -450,6 +459,7 @@
 <script src="ouvertures.js"></script>
 <script src="bot.js"></script>
 <script src="jouer.js"></script>
+<script src="botperso.js"></script>
 <dialog id="dlg-sync" class="dlg-sync" aria-labelledby="sync-titre">
   <form method="dialog" class="sync-form">
     <h3 id="sync-titre">Synchronisation GitHub</h3>
