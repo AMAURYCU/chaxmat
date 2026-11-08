@@ -1,5 +1,5 @@
-# Dependances de l'Entraineur d'ouvertures
-# Chess Coach dependencies
+# Dependances de Chaxmat
+# Chaxmat dependencies
 #
 # Le seul paquet pip sert au skill d'analyse (skills/).
 # The only pip package is for the analysis skill (skills/).

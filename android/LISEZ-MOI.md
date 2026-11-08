@@ -1,9 +1,12 @@
-# L'entraîneur sur Android
+# Chaxmat sur Android
 
 L'appli Android emballe l'application web de `../entraineur/app` dans une WebView qui
 remplace le serveur local. Il n'y a ni serveur ni Terminal à lancer : l'icône
-ouvre directement l'application. Elle s'appelle « Entraîneur » sur un téléphone réglé
-en français, « Chess Coach » dans les autres langues.
+ouvre directement l'application. Elle s'appelle « Chaxmat » dans toutes les langues.
+
+La dernière version est sur la page des
+[releases](https://github.com/AMAURYCU/chaxmat/releases/latest) : télécharge
+`Chaxmat.apk` sur le téléphone et ouvre-le.
 
 ## Construire l'APK
 
@@ -16,7 +19,7 @@ sudo apt install openjdk-17-jdk-headless aapt dalvik-exchange zipalign apksigner
 Puis lancer :
 
 ```
-./construire_apk.sh            # écrit Entraineur.apk dans ce dossier
+./construire_apk.sh            # écrit Chaxmat.apk dans ce dossier
 ```
 
 Au premier passage, le script crée la clé de signature `cle/entraineur.p12` et demande
@@ -51,7 +54,7 @@ Au lancement, si le téléphone est connecté, l'appli demande à GitHub la dern
 version publiée (au plus une fois par heure). Si elle est plus récente, un bandeau
 propose « Mettre à jour » : l'appli télécharge l'APK joint à la release, puis Android
 affiche son écran d'installation. La première fois, Android demande d'autoriser
-l'Entraîneur à installer des applis ; c'est seulement pour sa propre mise à jour.
+Chaxmat à installer des applis ; c'est seulement pour sa propre mise à jour.
 
 Tes données restent : c'est la même appli, signée avec la même clé. Si la clé diffère
 (une APK que tu as construite toi-même avec ta clé), Android refuse, et le bandeau
@@ -72,7 +75,7 @@ fichier.
    le bandeau, sous « Nouveautés ».
 
    ```
-   gh release create v2026.11.15 Entraineur.apk --title 2026.11.15 --notes "Ce qui change…"
+   gh release create v2026.11.15 Chaxmat.apk --title 2026.11.15 --notes "Ce qui change…"
    ```
 
    On peut aussi passer par la page du dépôt : *Releases → Draft a new release*.

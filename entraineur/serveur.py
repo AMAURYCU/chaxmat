@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mini-serveur local de l'entraineur d'ouvertures.
+"""Mini-serveur local de Chaxmat, l'entraineur d'echecs.
 
 Sert le dossier app/ et deux routes, qui refusent tout autre site que la
 page elle-meme :
@@ -208,7 +208,7 @@ def main():
     socketserver.TCPServer.allow_reuse_address = True
     with socketserver.TCPServer(("127.0.0.1", port), Handler) as httpd:
         print("=" * 58)
-        print("  Entraineur d'ouvertures / Chess Coach")
+        print("  Chaxmat - entraineur d'echecs / chess trainer")
         print("  " + url)
         print("  Donnees / Data : %s" % DATA)
         print("  Ferme cette fenetre (ou Ctrl-C) pour arreter.")

@@ -404,7 +404,7 @@
     const debut = cm(CLE_INITIALE).trim();       // note sur la position de départ
     const corps = (debut ? debut + ' ' : '') + suite(CLE_INITIALE, new Echecs().fen(), new Set([CLE_INITIALE]), true);
     const entete = [
-      `[Event "${nom}"]`, tx('[Site "Entraîneur d\'ouvertures"]'),
+      `[Event "${nom}"]`, '[Site "Chaxmat"]',
       `[Date "${new Date().toISOString().slice(0, 10).replace(/-/g, '.')}"]`,
       '[Result "*"]', `[Orientation "${camp === 'w' ? 'white' : 'black'}"]`,
     ].join('\n');

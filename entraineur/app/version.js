@@ -7,4 +7,4 @@
    « v » + version, avec l'APK en pièce jointe. Si tu publies ta propre
    version de l'appli, mets ici ton dépôt. */
 'use strict';
-window.VERSION_APPLI = { version: '2026.11.08', depot: 'AMAURYCU/chess-coach' };
+window.VERSION_APPLI = { version: '2026.11.09', depot: 'AMAURYCU/chaxmat' };

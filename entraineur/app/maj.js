@@ -35,12 +35,16 @@ const Maj = {
     } catch (e) { /* stockage indisponible : on redemandera */ }
     return null;
   },
-  /* La release, sous une forme sûre : seulement des adresses de GitHub. */
+  /* La release, sous une forme sûre : seulement des adresses de GitHub, dans
+     ce dépôt. GitHub suit un dépôt renommé (chess-coach → chaxmat) : sa
+     réponse donne alors le nouveau nom, celui de html_url. */
   lire(j, depot) {
     const tag = String(j.tag_name || '');
-    const apk = (j.assets || []).find(a => /\.apk$/i.test(a.name || '')
-      && String(a.browser_download_url || '').startsWith('https://github.com/' + depot + '/releases/download/'));
     const page = String(j.html_url || '');
+    const m = page.match(/^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/releases\//);
+    const depots = [depot.toLowerCase()].concat(m ? [m[1].toLowerCase()] : []);
+    const apk = (j.assets || []).find(a => /\.apk$/i.test(a.name || '') && depots.some(d =>
+      String(a.browser_download_url || '').toLowerCase().startsWith('https://github.com/' + d + '/releases/download/')));
     return {
       version: tag.replace(/^v/i, ''), tag,
       page: page.startsWith('https://github.com/') ? page : 'https://github.com/' + depot + '/releases/latest',
@@ -96,7 +100,7 @@ const Maj = {
         let peut = true; try { peut = PontAndroid.peutInstaller(); } catch (e) { }
         if (!peut) {
           etat.hidden = false;
-          etat.textContent = tx('La première fois, Android te demandera d’autoriser l’Entraîneur à installer des applis : c’est pour sa propre mise à jour.');
+          etat.textContent = tx('La première fois, Android te demandera d’autoriser Chaxmat à installer des applis : c’est pour sa propre mise à jour.');
         }
       }
       boutons.append(lien, plusTard);

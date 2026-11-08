@@ -1,4 +1,4 @@
-# Guide de l'entraîneur
+# Guide de Chaxmat
 
 Ce guide décrit chaque onglet de l'application. Pour l'installer, voir le
 [README](../README.fr.md).
@@ -410,7 +410,7 @@ s'affiche en haut de la page, avec ses nouveautés :
 - **« Télécharger »**, si tu l'as téléchargée en ZIP : remplace le dossier de
   l'application, et garde `entraineur/donnees` ;
 - **« Mettre à jour »**, sur Android : l'appli télécharge l'APK, puis Android demande de
-  confirmer. La première fois, il demande aussi d'autoriser l'Entraîneur à installer
+  confirmer. La première fois, il demande aussi d'autoriser Chaxmat à installer
   des applis. Tes données restent.
 
 « Plus tard » ferme le bandeau jusqu'au prochain lancement.

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Entraîneur</string>
+    <string name="app_name">Chaxmat</string>
     <string name="aucune_appli">Aucune application pour enregistrer le fichier.</string>
     <string name="enregistre">Fichier enregistré.</string>
     <string name="echec_enregistrement">Enregistrement impossible.</string>

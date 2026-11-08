@@ -1,4 +1,4 @@
-/* Entraîneur d'ouvertures — application locale.
+/* Chaxmat, entraîneur d'échecs — application locale.
    Tout tourne dans le navigateur : chess.js pour les règles, Stockfish (WebAssembly)
    pour l'analyse, les API publiques de chess.com et de Lichess pour l'import. */
 'use strict';

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Construit l'APK de l'entraîneur à partir de l'application web.
+# Construit l'APK de Chaxmat à partir de l'application web.
 #
 #   ./construire_apk.sh [sortie.apk]
 #
@@ -20,7 +20,7 @@ set -euo pipefail
 ICI="$(cd "$(dirname "$0")" && pwd)"
 SRC="$ICI/source"
 APP="$ICI/../entraineur/app"
-SORTIE="${1:-$ICI/Entraineur.apk}"
+SORTIE="${1:-$ICI/Chaxmat.apk}"
 ANDROID_JAR="${ANDROID_JAR:-/usr/lib/android-sdk/platforms/android-23/android.jar}"
 CLE="$ICI/cle/entraineur.p12"
 
@@ -71,7 +71,7 @@ echo "6/6 Signature"
 if [ ! -f "$CLE" ]; then
   mkdir -p "$(dirname "$CLE")"
   keytool -genkeypair -keystore "$CLE" -storetype PKCS12 -storepass "$MDP_CLE" -alias entraineur \
-    -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Entraineur d'ouvertures" 2>/dev/null
+    -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Chaxmat" 2>/dev/null
   echo "   nouvelle clé : $CLE (à garder, à ne jamais publier)"
 fi
 apksigner sign --ks "$CLE" --ks-pass "pass:$MDP_CLE" --out "$SORTIE" "$T/aligne.apk"

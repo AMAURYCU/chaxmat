@@ -1,12 +1,13 @@
-# Entraîneur d'ouvertures
+# Chaxmat
 
-[English](README.md) · **Français**
+[English](README.md) · **Français** · [Site](https://amaurycu.github.io/chaxmat/)
 
-Une application locale pour progresser aux échecs à partir de ses propres parties
-chess.com et Lichess. Elle importe tes parties, les analyse avec Stockfish directement dans le
-navigateur, explique chaque coup et te fait réviser tes ouvertures par répétition
-espacée. Elle est pensée pour les joueurs débutants et de club, et s'utilise en français
-ou en anglais.
+**Chaxmat** (du russe *chakh i mat*, « échec et mat ») est un entraîneur d'échecs libre
+et gratuit, pour l'ordinateur et Android. C'est une application locale pour progresser
+aux échecs à partir de ses propres parties chess.com et Lichess. Elle importe tes
+parties, les analyse avec Stockfish directement dans le navigateur, explique chaque coup
+et te fait réviser tes ouvertures par répétition espacée. Elle est pensée pour les
+joueurs débutants et de club, et s'utilise en français ou en anglais.
 
 Tout tourne sur ta machine : il n'y a ni compte, ni serveur distant, ni publicité.
 
@@ -36,8 +37,8 @@ Tout tourne sur ta machine : il n'y a ni compte, ni serveur distant, ni publicit
   gaffes et d'erreurs qu'un joueur de ton Elo.
 - **Bot personnalisé** : il récupère toutes tes parties, fait noter par Stockfish les
   coups possibles de tes adversaires, et apprend comment ils choisissent (prises,
-  échecs, roque, s'ils avancent ou reculent, ce qu'ils ratent, quand ils gaffent). Ensuite il joue comme eux, et
-  chaque import le réentraîne.
+  échecs, roque, s'ils avancent ou reculent, ce qu'ils ratent, quand ils gaffent).
+  Ensuite il joue comme eux, et chaque import le réentraîne.
 - **Mats et finales** : 35 thèmes (mats de base, roi et pion, règle du carré, Lucena,
   Philidor, dame contre pion, dame contre tour, et des finales avancées jusqu'à 7
   pièces…), chacun une position non triviale tirée au hasard, à gagner ou à annuler
@@ -55,6 +56,14 @@ Tout tourne sur ta machine : il n'y a ni compte, ni serveur distant, ni publicit
 ![Répertoires](docs/ouvertures.png)
 
 ## Démarrer
+
+Récupère l'application : le ZIP ou l'APK Android de la
+[dernière version](https://github.com/AMAURYCU/chaxmat/releases/latest), ou un clone git,
+qui se met ensuite à jour d'un clic :
+
+```
+git clone https://github.com/AMAURYCU/chaxmat.git
+```
 
 Il faut **Python 3.7** ou plus récent, sans aucun paquet supplémentaire, et un navigateur
 récent (Chrome ou Edge 91+, Firefox 98+, Safari 16.4+). La liste complète est dans
@@ -195,7 +204,7 @@ android/          l'appli Android : sources et script de construction
 skills/analyse-partie-echecs/
   SKILL.md        le skill Claude
   scripts/        analyse Stockfish et gabarits de rapports HTML
-docs/             captures d'écran
+docs/             le site (GitHub Pages) et les captures d'écran
 requirements.txt  les dépendances (paquets pip, puis tout le reste)
 ```
 

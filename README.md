@@ -1,11 +1,13 @@
-# Chess Coach
+# Chaxmat
 
-**English** · [Français](README.fr.md)
+**English** · [Français](README.fr.md) · [Website](https://amaurycu.github.io/chaxmat/)
 
-A local app to improve at chess from your own chess.com and Lichess games. It imports your games,
-analyses them with Stockfish right in the browser, explains every move and has you
-review your openings with spaced repetition. It is designed for beginners and club
-players, and works in English or French.
+**Chaxmat** (from the Russian *shakh i mat*, "checkmate") is a free, open-source chess
+trainer for desktop and Android. It is a local app to improve at chess from your own
+chess.com and Lichess games. It imports your games, analyses them with Stockfish right
+in the browser, explains every move and has you review your openings with spaced
+repetition. It is designed for beginners and club players, and works in English or
+French.
 
 Everything runs on your computer: no account, no remote server, no ads.
 
@@ -34,7 +36,8 @@ Everything runs on your computer: no account, no remote server, no ads.
   down. The bot makes as many blunders and mistakes as a player of your rating.
 - **Personal bot**: it fetches all your games, has Stockfish score your opponents’
   possible moves, and learns how they choose (captures, checks, castling, whether they
-  advance or retreat, what they miss, when they blunder). Then it plays like them, and every import retrains it.
+  advance or retreat, what they miss, when they blunder). Then it plays like them, and
+  every import retrains it.
 - **Checkmates and endgames**: 35 themes (basic mates, king and pawn, the square,
   Lucena, Philidor, queen against pawn, queen against rook, and advanced endings up to
   7 pieces…), each a non-trivial random position to win or to hold against perfect
@@ -51,6 +54,14 @@ Everything runs on your computer: no account, no remote server, no ads.
 ![Repertoires](docs/openings.png)
 
 ## Getting started
+
+Get the app: the ZIP or the Android APK of the
+[latest release](https://github.com/AMAURYCU/chaxmat/releases/latest), or a git clone,
+which then updates in one click:
+
+```
+git clone https://github.com/AMAURYCU/chaxmat.git
+```
 
 You need **Python 3.7** or later, with no extra package, and a recent browser (Chrome or
 Edge 91+, Firefox 98+, Safari 16.4+). The full list is in [requirements.txt](requirements.txt).
@@ -125,7 +136,7 @@ to start, the icon opens the app directly. To build the APK (on Linux):
 
 ```
 sudo apt install openjdk-17-jdk-headless aapt dalvik-exchange zipalign apksigner android-sdk-platform-23
-cd android && ./construire_apk.sh      # writes Entraineur.apk in this folder
+cd android && ./construire_apk.sh      # writes Chaxmat.apk in this folder
 ```
 
 The first run creates the signing key `cle/entraineur.p12` and asks for its password (or
@@ -201,7 +212,7 @@ android/          the Android app: sources and build script
 skills/analyse-partie-echecs/
   SKILL.md        the Claude skill
   scripts/        Stockfish analysis and HTML report templates
-docs/             screenshots
+docs/             the website (GitHub Pages) and screenshots
 requirements.txt  dependencies (pip packages, then everything else)
 ```
 
