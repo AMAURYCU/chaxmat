@@ -36,8 +36,14 @@ Tout tourne sur ta machine : il n'y a ni compte, ni serveur distant, ni publicit
   gaffes et d'erreurs qu'un joueur de ton Elo.
 - **Bot personnalisé** : il récupère toutes tes parties, fait noter par Stockfish les
   coups possibles de tes adversaires, et apprend comment ils choisissent (prises,
-  échecs, roque, ce qu'ils ratent, quand ils gaffent). Ensuite il joue comme eux, et
+  échecs, roque, s'ils avancent ou reculent, ce qu'ils ratent, quand ils gaffent). Ensuite il joue comme eux, et
   chaque import le réentraîne.
+- **Mats et finales** : 35 thèmes (mats de base, roi et pion, règle du carré, Lucena,
+  Philidor, dame contre pion, dame contre tour, et des finales avancées jusqu'à 7
+  pièces…), chacun une position non triviale tirée au hasard, à gagner ou à annuler
+  contre le jeu parfait des tables de finales de Lichess, ou contre Stockfish seul hors
+  connexion. Un coup qui laisse filer le gain ou la nulle est signalé tout de suite,
+  avec un niveau par thème.
 - **Progression** jour par jour et une courbe Elo par site.
 - **Réglage de niveau** (débutant, intermédiaire, confirmé), qui ajuste le jugement des
   parties.
@@ -72,6 +78,22 @@ onglet.
 
 Tes données sont dans `entraineur/donnees/donnees.json`. Ce dossier est ignoré par git :
 il ne part jamais dans le dépôt.
+
+### Mises à jour
+
+Au lancement, si tu es connecté, l'application regarde sur GitHub si une nouvelle
+version est publiée (la dernière *release* du dépôt). Si oui, un bandeau te le dit, avec
+ses nouveautés :
+
+- **installée avec git** : « Mettre à jour » fait `git pull` dans le dossier, puis la
+  page se recharge. Si `serveur.py` a changé, relance l'entraîneur ;
+- **téléchargée en ZIP** : « Télécharger » ouvre la release ; remplace le dossier de
+  l'application et garde `entraineur/donnees` ;
+- **sur Android** : « Mettre à jour » télécharge l'APK de la release, et Android
+  demande de confirmer l'installation. Tes données restent.
+
+Tes données ne bougent jamais : `git pull` refuse d'écraser un fichier que tu as
+modifié, et le dossier `donnees` est ignoré par git.
 
 ## Langue
 
@@ -153,6 +175,8 @@ Ce qui sort de ta machine :
 - les requêtes à l'**explorateur d'ouvertures de Lichess**, si tu t'y connectes, sans
   aucun droit sur ton compte ;
 - l'envoi de tes données à **GitHub**, si tu actives la synchronisation ;
+- au lancement, une requête à l'**API de GitHub** pour savoir si une nouvelle version
+  est publiée (au plus une par heure ; elle n'envoie rien de toi) ;
 - le chargement des **polices Google Fonts**.
 
 Le serveur local refuse toute requête qui ne vient pas de la page elle-même.

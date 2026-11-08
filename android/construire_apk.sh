@@ -49,7 +49,9 @@ PY
 
 # minutes écoulées depuis 1970 : toujours croissant, même pour deux versions la même heure
 VC="$(( $(date +%s) / 60 ))"
-VN="$(date +%Y-%m-%d)"
+# le nom de version : celui de version.js, que l'appli compare aux releases GitHub
+VN="$(sed -n "s/.*version: *'\([^']*\)'.*/\1/p" "$APP/version.js" | head -n 1)"
+[ -n "$VN" ] || { echo "version introuvable dans $APP/version.js"; exit 1; }
 echo "2/6 Ressources (version $VN, code $VC)"
 aapt package -f -m -J "$T/gen" -M "$SRC/AndroidManifest.xml" -S "$SRC/res" -A "$T/assets" \
   -I "$ANDROID_JAR" --version-code "$VC" --version-name "$VN" -F "$T/base.apk"

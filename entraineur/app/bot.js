@@ -657,11 +657,22 @@
      temps presse, tomber dans une fourchette plutôt que dans une pièce
      simplement en prise… L'étude faite sur 2 901 coups des adversaires
      d'Amaury : un réseau à couche cachée ne faisait pas mieux que ce modèle,
-     et les six indices tactiques l'améliorent un peu, de façon régulière. */
+     et les six indices tactiques l'améliorent un peu, de façon régulière.
+     Les huit derniers disent dans quel sens va la pièce. Sans eux, sur
+     5 078 coups de ses adversaires, le bot reculait deux fois plus souvent
+     qu'eux une pièce que rien ne menaçait (6,2 % des coups contre 3,3 %) et
+     remettait quatre fois plus souvent une pièce sur sa case de départ
+     (2,2 % contre 0,5 %) ; avec eux, il retrouve leurs proportions et
+     prévoit mieux leurs coups (−2,176 contre −2,197 pour le réseau). */
   const TRAITS = ['l1', 'l2', 'l3', 'gaffe', 'erreur', 'prise_v', 'prise', 'reprise', 'echec', 'roque',
     'p_n', 'p_b', 'p_r', 'p_q', 'p_k', 'roi_tot', 'dame_tot', 'sauve', 'laisse', 'menace_ignoree',
     'gratuite', 'promo', 'l1_elo', 'l3_elo', 'gaffe_elo', 'l1_temps', 'gaffe_temps', 'l1_phase', 'gaffe_phase',
-    'joue_tac', 'joue_tac_bon', 'joue_mat', 'cede_tac', 'cede_tac_gaffe', 'cede_mat'];
+    'joue_tac', 'joue_tac_bon', 'joue_mat', 'cede_tac', 'cede_tac_gaffe', 'cede_mat',
+    'recul_menace', 'recul_libre', 'rentre', 'rentre_libre', 'retour_depart', 'avance', 'developpe', 'centre'];
+  /* cases de départ des pièces, par colonne (sur la première rangée) */
+  const DEPARTS = { n: 'bg', b: 'cf', q: 'd', r: 'ah' };
+  /* éloignement du centre : 0 sur d4-e5, 3 au bord */
+  const loinCentre = (sq) => Math.max(Math.abs(sq.charCodeAt(0) - 100.5), Math.abs(+sq[1] - 4.5)) - 0.5;
   const TACTIQUES = new Set(['fourchette', 'clouage', 'enfilade', 'decouverte']);
   const VALP = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
   const autreC = (c) => (c === 'w' ? 'b' : 'w');
@@ -715,6 +726,7 @@
     const phase = Math.max(-1, Math.min(1.5, (ctx.ply - 30) / 30));
     const precTo = precUci ? precUci.slice(2, 4) : null;
     const precM = precUci ? { from: precUci.slice(0, 2), to: precUci.slice(2, 4) } : null;
+    const rangDe = (sq) => (c === 'w' ? +sq[1] - 1 : 8 - +sq[1]);
     const X = [], ucis = [], pertes = [], codes = [];
     for (const l of cs) {
       const m = legaux.get(l.uci);
@@ -743,6 +755,10 @@
       const l3 = Math.min(Math.max(perte - 300, 0), 1200) / 1200;
       const g = perte >= 300 ? 1 : 0, e = perte >= 100 && perte < 300 ? 1 : 0;
       const roi = m.piece === 'k' && !roque;
+      /* le sens du coup, vu du camp qui joue (rangée 0 = la sienne) */
+      const fig = m.piece !== 'p' && m.piece !== 'k', calme = fig && !capt;
+      const r0 = rangDe(m.from), r1 = rangDe(m.to);
+      const recul = calme && r1 < r0, rentre = calme && m.piece !== 'r' && r1 === 0 && r0 > 0;
       X.push([l1, l2, l3, g, e, capt ? VALP[capt] / 100 : 0, capt ? 1 : 0, capt && precTo === m.to ? 1 : 0,
         /[+#]/.test(m.san) ? 1 : 0, roque ? 1 : 0,
         m.piece === 'n' ? 1 : 0, m.piece === 'b' ? 1 : 0, m.piece === 'r' ? 1 : 0, m.piece === 'q' ? 1 : 0, roi ? 1 : 0,
@@ -750,7 +766,11 @@
         attaque, Math.max(0, pireApres - pireAvant) / 100, pireAvant >= 100 && pireApres >= pireAvant ? 1 : 0,
         gratuite, m.promotion && m.promotion !== 'q' ? 1 : 0,
         l1 * eloz, l3 * eloz, g * eloz, l1 * court, g * court, l1 * phase, g * phase,
-        jt, jt * (perte < 50 ? 1 : 0), jmat, ct, ct * g, cmat]);
+        jt, jt * (perte < 50 ? 1 : 0), jmat, ct, ct * g, cmat,
+        recul && attaque ? 1 : 0, recul && !attaque ? 1 : 0, rentre ? 1 : 0, rentre && !attaque ? 1 : 0,
+        calme && r1 === 0 && (DEPARTS[m.piece] || '').includes(m.to[0]) ? 1 : 0, calme && r1 > r0 ? 1 : 0,
+        !capt && (m.piece === 'n' || m.piece === 'b') && r0 === 0 && r1 > 0 ? 1 : 0,
+        fig ? (loinCentre(m.from) - loinCentre(m.to)) / 3 : 0]);
       ucis.push(l.uci); pertes.push(perte);
     }
     return { X, ucis, pertes, lignes: cs, cout: { a: Math.round(pireAvant / 10), c: codes } };
@@ -839,7 +859,15 @@
       return s;
     });
   }
-  const probasModele = (m, X) => softmax(m.H ? scoresReseau(m, X) : X.map(x => produit(m.w, x)));
+  /* Un modèle appris avant l'ajout d'indices n'en connaît que les premiers :
+     on lui donne ceux-là (les nouveaux sont toujours ajoutés à la fin), et
+     il joue exactement comme avant jusqu'au prochain apprentissage. */
+  const nbEntrees = (m) => (m.H ? (m.t.length - 2 * m.H) / (m.H + 1) : m.w.length);
+  function adapter(m, X) {
+    const F = nbEntrees(m);
+    return X.length && F < X[0].length ? X.map(x => x.slice(0, F)) : X;
+  }
+  const probasModele = (m, X) => { X = adapter(m, X); return softmax(m.H ? scoresReseau(m, X) : X.map(x => produit(m.w, x))); };
   async function entrainerReseau(rows, opts) {
     opts = opts || {};
     const F = rows[0].X[0].length, H = opts.H || 8, lam = opts.l2 === undefined ? 1 : opts.l2;
@@ -1026,7 +1054,8 @@
     const t = traitsPosition(fen, prec ? prec.from + prec.to + (prec.promotion || '') : null, lignes, Object.assign({ ply }, ctx));
     if (!t) return null;
     if (t.ucis.length === 1) return { uci: t.ucis[0], sorte: 'seul', perte: 0 };
-    const sc = modele.H ? scoresReseau(modele, t.X) : t.X.map(x => produit(modele.w, x));
+    const Xm = adapter(modele, t.X);
+    const sc = modele.H ? scoresReseau(modele, Xm) : Xm.map(x => produit(modele.w, x));
     if (reglage && reglage.simplifier) {
       t.ucis.forEach((u, j) => {
         const m = jouerUci(new Echecs(fen), u), suite = (t.lignes[j].pv || [])[1];
@@ -1092,7 +1121,7 @@
     cible, phaseDe, CALIB, choisir, attrait, tempsReflexion, REF, PENTE,
     THEMES, motifsDuCoup, occasions, choisirOccasion, majNiveau,
     TRAITS, traitsPosition, entrainer, mesurer, valider, probasRegle, choisirPerso, softmax, produit,
-    entrainerReseau, scoresReseau, probasModele,
+    entrainerReseau, scoresReseau, probasModele, nbEntrees,
     compterLivre, arbreDuLivre, seeSimple, POIDS_CORIACE,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

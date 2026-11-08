@@ -1,8 +1,10 @@
 package io.github.amaurycu.entraineur;
 
 import android.app.Activity;
+import android.app.PendingIntent;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
+import android.content.pm.PackageInstaller;
 import android.content.res.Configuration;
 import android.graphics.Color;
 import android.net.Uri;
@@ -27,9 +29,13 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
+
+import org.json.JSONObject;
 
 /**
  * Entraîneur d'ouvertures, version Android.
@@ -46,6 +52,12 @@ import java.util.Map;
  *     interceptés, donc android-pont.js détourne cet appel vers ecrire().
  * Même règle que serveur.py : on refuse d'écraser si le fichier a changé
  * depuis la lecture de la page (409).
+ *
+ * Mise à jour (maj.js) : la page trouve sur GitHub une release plus récente
+ * et appelle installerMaj() avec l'adresse de son APK. On le télécharge ici
+ * (pas de CORS côté Java), puis PackageInstaller le remet à Android, qui
+ * affiche son écran de confirmation. Android n'accepte que le même paquet,
+ * signé avec la même clé : les données de l'appli restent.
  */
 public class MainActivity extends Activity {
 
@@ -55,6 +67,8 @@ public class MainActivity extends Activity {
 
     private static final int REQ_FICHIER = 1;
     private static final int REQ_EXPORT = 2;
+    private static final long TAILLE_MAX_APK = 200L * 1024 * 1024;
+    private volatile boolean majEnCours = false;
 
     private WebView web;
     private File donnees;
@@ -85,6 +99,14 @@ public class MainActivity extends Activity {
 
         if (etat != null) web.restoreState(etat);
         if (web.getUrl() == null) web.loadUrl(ACCUEIL);
+        if (getIntent() != null && actionMaj().equals(getIntent().getAction())) etatInstallation(getIntent());
+    }
+
+    /* L'état de l'installation revient ici (launchMode singleTask). */
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        if (intent != null && actionMaj().equals(intent.getAction())) etatInstallation(intent);
     }
 
     @Override
@@ -206,6 +228,184 @@ public class MainActivity extends Activity {
                 }
             });
         }
+
+        /** Télécharge l'APK d'une release GitHub et lance son installation. */
+        @JavascriptInterface
+        public void installerMaj(final String adresse) {
+            if (!autorise()) return;
+            if (!adresseRelease(adresse)) { echecMaj(4, "adresse refusée"); return; }
+            if (majEnCours) return;
+            majEnCours = true;
+            new Thread(new Runnable() {
+                public void run() {
+                    try {
+                        installer(telecharger(adresse));
+                    } catch (Exception e) {
+                        echecMaj(1, e.getMessage());
+                    } finally {
+                        majEnCours = false;
+                    }
+                }
+            }).start();
+        }
+
+        /** Android 8 et plus : l'utilisateur a-t-il déjà permis à l'appli d'installer des applis ? */
+        @JavascriptInterface
+        public boolean peutInstaller() {
+            if (Build.VERSION.SDK_INT < 26) return true;
+            try {
+                Object pm = getPackageManager();
+                return (Boolean) pm.getClass().getMethod("canRequestPackageInstalls").invoke(pm);
+            } catch (Exception e) {
+                return true;
+            }
+        }
+    }
+
+    /* ------------------------------------------------------------ mise à jour */
+
+    private String actionMaj() { return getPackageName() + ".MAJ"; }
+
+    /** Seulement une pièce jointe de release GitHub, en https. */
+    static boolean adresseRelease(String adresse) {
+        if (adresse == null) return false;
+        Uri u = Uri.parse(adresse);
+        if (!"https".equals(u.getScheme()) || !"github.com".equals(u.getHost())) return false;
+        java.util.List<String> p = u.getPathSegments();
+        return p.size() >= 5 && "releases".equals(p.get(2)) && "download".equals(p.get(3))
+            && p.get(p.size() - 1).toLowerCase().endsWith(".apk");
+    }
+
+    /** GitHub renvoie vers son stockage : on suit les redirections, en https seulement. */
+    private File telecharger(String adresse) throws IOException {
+        File f = new File(getCacheDir(), "maj.apk");
+        HttpURLConnection c = null;
+        InputStream in = null;
+        OutputStream out = null;
+        try {
+            URL u = new URL(adresse);
+            for (int sauts = 0; ; sauts++) {
+                c = (HttpURLConnection) u.openConnection();
+                c.setInstanceFollowRedirects(false);
+                c.setConnectTimeout(20000);
+                c.setReadTimeout(30000);
+                c.setRequestProperty("Accept", "application/octet-stream");
+                int code = c.getResponseCode();
+                if (code >= 300 && code < 400 && sauts < 6) {
+                    String loc = c.getHeaderField("Location");
+                    c.disconnect();
+                    if (loc == null) throw new IOException("redirection sans adresse");
+                    u = new URL(u, loc);
+                    if (!"https".equals(u.getProtocol())) throw new IOException("redirection hors https");
+                    continue;
+                }
+                if (code != 200) throw new IOException("HTTP " + code);
+                break;
+            }
+            long total = c.getContentLength();
+            if (total > TAILLE_MAX_APK) throw new IOException("fichier trop gros");
+            in = c.getInputStream();
+            out = new FileOutputStream(f);
+            byte[] b = new byte[64 * 1024];
+            long fait = 0, signale = 0;
+            int n;
+            while ((n = in.read(b)) > 0) {
+                out.write(b, 0, n);
+                fait += n;
+                if (fait > TAILLE_MAX_APK) throw new IOException("fichier trop gros");
+                if (fait - signale >= 256 * 1024) {
+                    signale = fait;
+                    js("Maj.progression(" + fait + "," + total + ")");
+                }
+            }
+            out.close();
+            out = null;
+            js("Maj.progression(" + fait + "," + (total > 0 ? total : fait) + ")");
+            return f;
+        } catch (IOException e) {
+            f.delete();
+            throw e;
+        } finally {
+            fermer(in);
+            fermer(out);
+            if (c != null) c.disconnect();
+        }
+    }
+
+    /** Remet l'APK à Android ; la réponse arrive dans onNewIntent (etatInstallation). */
+    private void installer(File f) throws IOException {
+        PackageInstaller pi = getPackageManager().getPackageInstaller();
+        PackageInstaller.SessionParams p = new PackageInstaller.SessionParams(
+            PackageInstaller.SessionParams.MODE_FULL_INSTALL);
+        p.setAppPackageName(getPackageName());   // refuse tout autre paquet
+        p.setSize(f.length());
+        int id = pi.createSession(p);
+        PackageInstaller.Session s = pi.openSession(id);
+        InputStream in = null;
+        OutputStream out = null;
+        try {
+            out = s.openWrite("maj.apk", 0, f.length());
+            in = new FileInputStream(f);
+            byte[] b = new byte[64 * 1024];
+            int n;
+            while ((n = in.read(b)) > 0) out.write(b, 0, n);
+            s.fsync(out);
+            out.close();
+            out = null;
+            Intent retour = new Intent(this, MainActivity.class).setAction(actionMaj());
+            int drapeaux = PendingIntent.FLAG_UPDATE_CURRENT;
+            if (Build.VERSION.SDK_INT >= 31) drapeaux |= 0x02000000;   // FLAG_MUTABLE : Android y ajoute l'état
+            PendingIntent pe = PendingIntent.getActivity(this, 7, retour, drapeaux);
+            s.commit(pe.getIntentSender());
+        } catch (IOException | RuntimeException e) {
+            s.abandon();
+            throw e;
+        } finally {
+            fermer(in);
+            fermer(out);
+            s.close();
+            f.delete();
+        }
+    }
+
+    private void etatInstallation(Intent intent) {
+        int st = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE);
+        if (st == PackageInstaller.STATUS_PENDING_USER_ACTION) {
+            Intent confirmer = (Intent) intent.getParcelableExtra(Intent.EXTRA_INTENT);
+            if (confirmer == null) { echecMaj(1, "pas d'écran de confirmation"); return; }
+            try {
+                startActivity(confirmer);
+                js("Maj.confirmation()");
+            } catch (ActivityNotFoundException e) {
+                echecMaj(1, e.getMessage());
+            }
+            return;
+        }
+        if (st == PackageInstaller.STATUS_SUCCESS) return;    // Android relance la nouvelle version
+        int code = st == PackageInstaller.STATUS_FAILURE_ABORTED ? 3
+            : st == PackageInstaller.STATUS_FAILURE_INVALID ? 4
+            : st == PackageInstaller.STATUS_FAILURE_CONFLICT || st == PackageInstaller.STATUS_FAILURE_INCOMPATIBLE ? 5
+            : st == PackageInstaller.STATUS_FAILURE_STORAGE ? 6 : 1;
+        echecMaj(code, intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE));
+    }
+
+    /** L'échec à la page (bandeau), et en message Android si la page n'est pas là. */
+    private void echecMaj(final int code, final String detail) {
+        final String d = detail == null ? "" : detail;
+        js("Maj.echec(" + code + "," + JSONObject.quote(d) + ")");
+        if (code != 3) runOnUiThread(new Runnable() {
+            public void run() {
+                Toast.makeText(MainActivity.this, getString(R.string.maj_echec, d), Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+
+    private void js(final String code) {
+        runOnUiThread(new Runnable() {
+            public void run() {
+                if (web != null) web.evaluateJavascript("try{" + code + "}catch(e){}", null);
+            }
+        });
     }
 
     @Override

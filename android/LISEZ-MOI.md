@@ -45,6 +45,41 @@ viennent de développeurs vérifiés. Il restera deux façons d'installer :
 - le « parcours avancé » prévu par Android pour installer une appli non vérifiée ;
 - un compte gratuit de « distribution limitée », qui couvre jusqu'à 20 appareils.
 
+## Mises à jour
+
+Au lancement, si le téléphone est connecté, l'appli demande à GitHub la dernière
+version publiée (au plus une fois par heure). Si elle est plus récente, un bandeau
+propose « Mettre à jour » : l'appli télécharge l'APK joint à la release, puis Android
+affiche son écran d'installation. La première fois, Android demande d'autoriser
+l'Entraîneur à installer des applis ; c'est seulement pour sa propre mise à jour.
+
+Tes données restent : c'est la même appli, signée avec la même clé. Si la clé diffère
+(une APK que tu as construite toi-même avec ta clé), Android refuse, et le bandeau
+l'explique.
+
+## Publier une version
+
+Pour le mainteneur du dépôt. L'appli compare sa version, écrite dans
+`entraineur/app/version.js`, au nom de la dernière release du dépôt indiqué dans ce même
+fichier.
+
+1. Change `version` dans `entraineur/app/version.js`, par exemple `2026.11.15`.
+2. Construis l'APK : `./construire_apk.sh`. Son nom de version est repris de
+   `version.js`. Signe-la **avec la même clé** que les versions précédentes : sinon,
+   Android refusera la mise à jour.
+3. Committe et pousse.
+4. Crée la release `v2026.11.15` avec l'APK en pièce jointe. Ses notes s'affichent dans
+   le bandeau, sous « Nouveautés ».
+
+   ```
+   gh release create v2026.11.15 Entraineur.apk --title 2026.11.15 --notes "Ce qui change…"
+   ```
+
+   On peut aussi passer par la page du dépôt : *Releases → Draft a new release*.
+
+Tant que le dépôt est privé, GitHub répond « introuvable » aux applis : personne ne voit
+de mise à jour.
+
 ## Ce qui change par rapport à l'ordinateur
 
 - **Données** : stockées dans l'espace privé de l'appli. Pour avoir les mêmes données
@@ -74,6 +109,12 @@ et c'est `MainActivity` qui répond.
 
 Quand l'appli passe en arrière-plan, `MainActivity` force l'écriture en attente, puis
 lance la synchronisation si elle est configurée.
+
+Pour une mise à jour, `maj.js` passe l'adresse de l'APK à `MainActivity`, qui le
+télécharge lui-même : seulement une pièce jointe de release sur `github.com`, en https.
+`PackageInstaller` le remet ensuite à Android, qui demande confirmation et n'accepte que
+le même paquet. C'est pour cela que l'APK demande la permission
+`REQUEST_INSTALL_PACKAGES`.
 
 Le nom du paquet est `io.github.amaurycu.entraineur`. Si tu publies ta propre
 version, change-le dans `source/AndroidManifest.xml` et dans le chemin de

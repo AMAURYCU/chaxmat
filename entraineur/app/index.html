@@ -57,6 +57,7 @@
     (précision, gaffes) est désactivée et tes données sont gardées dans le navigateur.
     Ferme cet onglet et lance le serveur avec le lanceur de ton système (voir le README) pour tout activer.
   </div>
+  <div id="bandeau-maj" class="bandeau" role="status" hidden></div>
 
   <!-- =============================== AUJOURD'HUI =============================== -->
   <section class="panneau actif" id="p-jour">
@@ -181,7 +182,7 @@
   <!-- =============================== ENTRAINEMENT =============================== -->
   <section class="panneau" id="p-entrainement">
     <h2>Entraînement</h2>
-    <p class="sous">Quatre chantiers : tes erreurs d'ouverture, tes gaffes en jeu, tes répertoires et les quiz des leçons.</p>
+    <p class="sous">Cinq chantiers : tes erreurs d'ouverture, tes gaffes en jeu, tes répertoires, les quiz des leçons, et les mats et finales.</p>
 
     <div id="ent-accueil">
 
@@ -235,6 +236,43 @@
           Une erreur affiche l'explication de la leçon. Un quiz réussi revient plus tard ; un quiz raté revient demain.</p>
         <div id="quiz-ouv-liste"></div>
       </section>
+
+      <section class="bloc-ent" id="bloc-finales">
+        <div class="bloc-h">
+          <h3>5 · Mats et finales</h3>
+          <span class="tag" id="cpt-finales">0</span>
+        </div>
+        <p class="sous">Des positions tirées au hasard, à gagner ou à annuler. L'adversaire joue parfaitement :
+          il suit les tables de finales de Lichess (exactes jusqu'à 7 pièces), et Stockfish départage ses coups
+          quand la position est nulle ; sans connexion, c'est Stockfish à pleine force. Si ton coup laisse filer
+          le gain ou la nulle, tu le sais tout de suite. Chaque thème a son niveau, de 1 à 3 : il monte d'un quart
+          quand tu réussis sans faute ni indice, et les positions deviennent plus longues ou plus étroites.</p>
+        <div id="finales-themes"></div>
+      </section>
+    </div>
+
+    <div id="fin-seance" hidden>
+      <!-- l'objectif et les messages au-dessus de l'échiquier : sur téléphone, on les voit sans défiler -->
+      <h3 id="fin-titre" style="margin:0 0 4px"></h3>
+      <p id="fin-sous" style="margin:0 0 8px"></p>
+      <div id="fin-etat" class="msg" role="status" aria-live="polite"></div>
+      <div id="fin-promo" class="ligne-ctrl" hidden></div>
+      <div id="fin-bilan"></div>
+      <div class="duo">
+        <div>
+          <svg class="plateau" id="plateau-fin" viewBox="0 0 800 800"></svg>
+          <div class="ligne-ctrl" style="margin-top:14px">
+            <button class="b g" id="fin-indice">Indice</button>
+            <button class="b g" id="fin-idee-btn">L'idée</button>
+            <button class="b g" id="fin-nouvelle">Nouvelle position</button>
+            <button class="b g" id="fin-quitter">Terminer</button>
+          </div>
+        </div>
+        <div>
+          <p id="fin-idee" class="fin-idee" hidden></p>
+          <div class="fil" id="fin-coups"></div>
+        </div>
+      </div>
     </div>
 
     <div id="ent-drill" hidden>
@@ -460,6 +498,7 @@
 <script src="bot.js"></script>
 <script src="jouer.js"></script>
 <script src="botperso.js"></script>
+<script src="finales.js"></script>
 <dialog id="dlg-sync" class="dlg-sync" aria-labelledby="sync-titre">
   <form method="dialog" class="sync-form">
     <h3 id="sync-titre">Synchronisation GitHub</h3>
@@ -500,6 +539,8 @@
 </dialog>
 
 <script src="sync.js"></script>
+<script src="version.js"></script>
+<script src="maj.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

@@ -930,7 +930,7 @@ function onglet(nom) {
   if (nom === 'ouvertures') vueOuvertures();
   /* Un entraînement en cours reprend où il en était : aller voir une leçon
      ou l'éditeur pendant une révision ne doit pas la faire perdre. */
-  if (nom === 'entrainement' && !(S.drill && !$('#ent-drill').hidden)) vueEntrainement();
+  if (nom === 'entrainement' && !(S.drill && !$('#ent-drill').hidden) && !($('#fin-seance') && !$('#fin-seance').hidden)) vueEntrainement();
   if (nom === 'editeur') vueEditeur();
   if (nom === 'jouer' && typeof vueJouer === 'function') vueJouer();
   /* chaque onglet s'ouvre en haut de page, pas au défilement du précédent */
@@ -2185,6 +2185,8 @@ function vueEntrainement(note) {
   majBlocsExos();
   majBlocRepertoires();
   if (typeof majBlocQuizOuv === 'function') majBlocQuizOuv();
+  if ($('#fin-seance')) $('#fin-seance').hidden = true;
+  if (typeof rendreFinales === 'function') rendreFinales();
 }
 
 /* ---------- profondeur de révision ----------
@@ -2791,6 +2793,8 @@ async function init() {
       collecterExos(); sauver(); majBadges();
     });
   }, 60);
+  /* une nouvelle version sur GitHub ? (maj.js) : après l'ouverture, sans la retarder */
+  if (typeof Maj !== 'undefined') setTimeout(() => Maj.auDemarrage().catch(e => console.warn('maj', e)), 1500);
 }
 init().catch(e => { console.error(e); alert(tx('Erreur au démarrage : ') + e.message); });
 

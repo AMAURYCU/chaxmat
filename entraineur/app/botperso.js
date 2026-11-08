@@ -229,9 +229,11 @@ async function entrainerBP(log, sansTest) {
   const bp = S.d.botPerso = S.d.botPerso || {};
   const avecReseau = rows.length >= BP_CFG.minReseau;
   etapeBP(tx('Il apprend, puis se teste sur des parties qu’il n’a pas vues'));
-  /* après un import, on garde la forme choisie au dernier test complet */
+  /* après un import, on garde la forme choisie au dernier test complet,
+     sauf si des indices ont été ajoutés depuis : il faut tout refaire */
+  const memesIndices = !anciensIndicesBP(bp);
   let mes = bp.mesures, forme = bp.forme || 'simple', iter = bp.iterReseau || 80;
-  if (!sansTest || !mes) {
+  if (!sansTest || !mes || !memesIndices) {
     const c = await comparerBP(rows, avecReseau);
     forme = c.reseau && c.reseau.ll > c.simple.ll + 0.005 ? 'reseau' : 'simple';
     mes = { modele: forme === 'reseau' ? c.reseau : c.simple, simple: c.simple, reseau: c.reseau, regle: c.regle };
@@ -244,7 +246,7 @@ async function entrainerBP(log, sansTest) {
   let m = { w }, mc = { w: wc };
   if (forme === 'reseau') {
     /* après un import, le réseau repart du précédent : moins d'itérations */
-    const avant = sansTest && bp.m && bp.m.H ? bp.m : null, suite = Math.max(10, Math.round(iter / 2));
+    const avant = sansTest && memesIndices && bp.m && bp.m.H ? bp.m : null, suite = Math.max(10, Math.round(iter / 2));
     m = await Bot.entrainerReseau(rows, { H: BP_CFG.neurones, iterations: avant ? suite : iter, depart: avant, pendant: pauseBP });
     mc = await Bot.entrainerReseau(coriace, { H: BP_CFG.neurones, iterations: suite, depart: m, pendant: pauseBP });
   }
@@ -285,6 +287,24 @@ async function creerBotPerso() {
     if (maj && neuves.length) await deroulerBP(neuves, BP.moteur, log, () => BP.stop, Infinity);
     await deroulerBP(parties, BP.moteur, log, () => BP.stop, Math.max(0, BP_CFG.maxPositions - nbPositionsBot()));
     await entrainerBP(log);
+  } catch (e) {
+    BP.erreur = e.message; console.warn('bot perso', e);
+  } finally {
+    BP.enCours = false; BP.stop = false;
+    rendrePerso(); majAdversaires();
+  }
+}
+/* Un bot appris avant l'ajout d'indices (le sens des coups, le 8 novembre
+   2026) joue comme avant, avec ceux qu'il connaît. Pour qu'il apprenne les
+   nouveaux, il suffit de refaire l'apprentissage sur les positions déjà
+   notées : ni Stockfish, ni connexion. */
+const anciensIndicesBP = (bp) => !!bp && !!bp.w && (bp.traits || []).length < Bot.TRAITS.length;
+async function reapprendreBP() {
+  if (BP.enCours || !botPerso()) return;
+  Object.assign(BP, { enCours: true, stop: false, erreur: null, message: '' });
+  rendrePerso();
+  try {
+    await entrainerBP((m) => { BP.message = m; majProgressionBP(); });
   } catch (e) {
     BP.erreur = e.message; console.warn('bot perso', e);
   } finally {
@@ -346,6 +366,10 @@ const LIBELLES_BP = () => ({
   joue_tac: tx('Jouer un coup qui crée une fourchette ou un clouage'), joue_mat: tx('Trouver un mat en un'),
   cede_tac_gaffe: tx('Gaffer sur une tactique plutôt que sur une pièce en prise'), cede_mat: tx('Laisser un mat en un'),
   p_n: tx('Jouer un cavalier'), p_b: tx('Jouer un fou'), p_r: tx('Jouer une tour'), p_q: tx('Jouer la dame'),
+  recul_menace: tx('Reculer une pièce menacée'), recul_libre: tx('Reculer une pièce que rien ne menace'),
+  rentre: tx('Ramener un cavalier, un fou ou la dame sur sa première rangée'),
+  retour_depart: tx('Remettre une pièce sur sa case de départ'), avance: tx('Avancer une pièce'),
+  developpe: tx('Sortir un cavalier ou un fou'),
 });
 function appris(bp) {
   const L = LIBELLES_BP();
@@ -376,6 +400,12 @@ function rendrePerso() {
       tx('Compte une demi-heure environ pour 500 parties, l’entraîneur ouvert. Tu peux arrêter en route : il apprend sur ce qui est fait. Ensuite, chaque import le réentraîne tout seul.')));
   } else {
     const m = bp.mesures || {}, mo = m.modele || {}, re = m.regle || {};
+    if (anciensIndicesBP(bp)) {
+      z.append(el('div', { class: 'perso-nouveau' },
+        el('p', { style: 'margin:0 0 8px' }, el('strong', {}, tx('Nouveaux indices : le sens des coups.')), ' ',
+          tx('Ton bot ne savait pas si une pièce avance ou recule, et il ramenait trop souvent des pièces sur leur case de départ. Il peut l’apprendre sur les positions déjà notées, sans Stockfish ni connexion (quelques minutes, un peu plus sur téléphone). D’ici là, il joue comme avant.')),
+        el('button', { class: 'b', onclick: reapprendreBP }, tx('Lui apprendre les nouveaux indices'))));
+    }
     z.append(el('p', { style: 'margin:0 0 10px' },
       tx('Entraîné le {0} sur {1} positions de {2} parties (adversaires de {3} Elo en moyenne).',
         [jourCourt(bp.maj), bp.nbPositions.toLocaleString(LOCALE_JEU()), bp.nbParties, bp.eloMoyen])),

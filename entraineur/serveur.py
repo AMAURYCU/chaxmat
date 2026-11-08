@@ -1,19 +1,22 @@
 #!/usr/bin/env python3
 """Mini-serveur local de l'entraineur d'ouvertures.
 
-Sert le dossier app/ et une seule route, /api/donnees, pour lire (GET) et
-ecrire (POST) donnees/donnees.json. Cette route refuse tout autre site que
-la page elle-meme, et refuse d'ecraser le fichier si un autre onglet l'a
-modifie entre-temps. Rien ne sort de ta machine, sauf les appels que le
-navigateur fait aux API publiques de chess.com et de Lichess, et a GitHub si
-tu actives la synchronisation entre appareils.
+Sert le dossier app/ et deux routes, qui refusent tout autre site que la
+page elle-meme :
+- /api/donnees, pour lire (GET) et ecrire (POST) donnees/donnees.json ; elle
+  refuse d'ecraser le fichier si un autre onglet l'a modifie entre-temps ;
+- /api/maj, pour la mise a jour : GET dit si l'appli vient d'un clone git,
+  POST fait "git pull --ff-only" (tes donnees, ignorees par git, restent).
+Rien ne sort de ta machine, sauf les appels que le navigateur fait aux API
+publiques de chess.com et de Lichess, a GitHub pour savoir si une nouvelle
+version est publiee, et a GitHub encore si tu actives la synchronisation.
 
 Lancement : python3 serveur.py
   macOS   : double-clic sur "Ouvrir l'entraineur.command"
   Windows : double-clic sur "ouvrir-entraineur.bat"
   Linux   : ./ouvrir-entraineur.sh
 """
-import http.server, socketserver, json, os, sys, threading, webbrowser, socket
+import http.server, socketserver, json, os, sys, threading, webbrowser, socket, subprocess
 from urllib.parse import urlsplit, parse_qs
 
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -41,6 +44,46 @@ def revision():
         return "%d-%d" % (st.st_mtime_ns, st.st_size)
     except OSError:
         return "0"
+
+
+def git(*args, timeout=30):
+    """git dans le dossier de l'entraineur, sans jamais attendre une saisie
+    (mot de passe, phrase de passe SSH) : on echoue plutot que de bloquer."""
+    env = dict(os.environ, GIT_TERMINAL_PROMPT="0")
+    env.setdefault("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
+    return subprocess.run(["git", "-C", BASE] + list(args), capture_output=True, text=True,
+                          timeout=timeout, env=env, stdin=subprocess.DEVNULL)
+
+
+def etat_git():
+    try:
+        r = git("rev-parse", "--is-inside-work-tree", timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return {"git": False}
+    return {"git": r.returncode == 0 and r.stdout.strip() == "true"}
+
+
+def mettre_a_jour():
+    """git pull --ff-only : jamais de fusion ni d'ecrasement. S'il y a des
+    modifications locales en conflit, git refuse et on rend son message."""
+    if not etat_git()["git"]:
+        return 400, {"ok": False, "sortie": "pas un clone git"}
+    try:
+        avant = git("rev-parse", "HEAD").stdout.strip()
+        r = git("pull", "--ff-only", timeout=120)
+        apres = git("rev-parse", "HEAD").stdout.strip()
+    except subprocess.TimeoutExpired:
+        return 500, {"ok": False, "sortie": "git pull trop long (plus de 2 minutes)"}
+    except (OSError, subprocess.SubprocessError) as e:
+        return 500, {"ok": False, "sortie": str(e)}
+    fichiers = []
+    if avant and apres and avant != apres:
+        fichiers = git("diff", "--name-only", avant, apres).stdout.split()
+    return (200 if r.returncode == 0 else 500), {
+        "ok": r.returncode == 0, "sortie": (r.stdout + r.stderr)[-2000:],
+        "change": avant != apres, "fichiers": len(fichiers),
+        "serveur": any(f.endswith("entraineur/serveur.py") for f in fichiers),
+    }
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -74,6 +117,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return True
 
     def do_GET(self):
+        if urlsplit(self.path).path == "/api/maj":
+            if not self.hote_local():
+                self.send_error(403)
+                return
+            self.repondre_json(200, etat_git())
+            return
         if urlsplit(self.path).path == "/api/donnees":
             if not self.hote_local():
                 self.send_error(403)
@@ -101,11 +150,20 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         url = urlsplit(self.path)
-        if url.path != "/api/donnees":
+        if url.path not in ("/api/donnees", "/api/maj"):
             self.send_error(404)
             return
         if not self.hote_local():
             self.send_error(403)
+            return
+        if url.path == "/api/maj":
+            # seulement depuis la page : un formulaire d'un autre site ne peut
+            # pas envoyer ce type de contenu sans une requete preliminaire
+            if not (self.headers.get("Content-Type") or "").startswith("application/json"):
+                self.send_error(415)
+                return
+            code, rep = mettre_a_jour()
+            self.repondre_json(code, rep)
             return
         n = int(self.headers.get("Content-Length") or 0)
         raw = self.rfile.read(n)

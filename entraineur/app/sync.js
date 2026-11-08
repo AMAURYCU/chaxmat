@@ -346,6 +346,7 @@ const Fusion = {
     parties: (x) => [x.moteur ? 1 : 0, JSON.stringify(x).length],
     partiesBot: (x) => [x.moteur ? 1 : 0, JSON.stringify(x).length],
     botPositions: (x) => [Array.isArray(x) ? x.length : 0],
+    finales: (x) => [x.essais || 0, x.dernier || ''],
     jours: (x) => [x.parties || 0, x.coups || 0],
     cartes: (x) => [JSON.stringify(x).length],
   },

@@ -5,4 +5,5 @@
     <string name="enregistre">Fichier enregistré.</string>
     <string name="echec_enregistrement">Enregistrement impossible.</string>
     <string name="choisir_pgn">Choisir un fichier PGN</string>
+    <string name="maj_echec">La mise à jour a échoué : %1$s</string>
 </resources>

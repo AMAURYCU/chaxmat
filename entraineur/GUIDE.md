@@ -100,8 +100,8 @@ l'ajouter, ou clique sur un coup proposé. Trois sources de propositions :
 
 ## Entraînement
 
-Quatre blocs : tes erreurs d'ouverture, tes gaffes en jeu, tes répertoires et les
-quiz d'ouverture.
+Cinq blocs : tes erreurs d'ouverture, tes gaffes en jeu, tes répertoires, les quiz
+d'ouverture, et les mats et finales.
 
 L'entraînement sur un répertoire avance ligne par ligne. À chaque position, il faut
 retrouver tes coups ; l'adversaire joue ses réponses préparées. Le menu « Réviser »
@@ -109,6 +109,79 @@ limite la révision à tes premiers coups.
 
 Une position ou un quiz réussi revient le lendemain, puis de plus en plus loin. Raté,
 il revient le lendemain.
+
+### Mats et finales
+
+35 thèmes, en cinq groupes :
+
+- **Mats de base** : deux tours, roi et dame, roi et tour, deux fous, fou et cavalier.
+- **Finales de pions** : roi et pion (gagner, et annuler en défense), la règle du carré,
+  le pion de la tour, la course de pions, les pions bloqués (opposition et
+  triangulation), deux pions contre un.
+- **Finales de tours** : Lucena (gagner), Philidor (annuler), tour et pion contre tour,
+  tour contre pion.
+- **Autres finales** : dame contre pion sur la 7e, fou de la mauvaise couleur, cavalier
+  contre pion, fous de couleurs opposées, dame contre tour, tour et fou contre tour,
+  tour contre fou, tour contre cavalier.
+- **Finales avancées** : deux pions contre deux, trois contre deux, tour et deux pions
+  contre tour, tour et deux pions contre tour et pion, tour contre deux pions liés, dame
+  et pion contre dame, fou et pion contre fou (Centurini), cavalier et pion contre
+  cavalier, fou contre cavalier avec des pions, tour, fou et pion contre tour, dame
+  contre tour et pion.
+
+**La position.** Chaque clic sur un thème tire une position au hasard : les pièces sont
+posées là où le thème a du sens (pour Lucena, le pion sur la 7e et le roi devant lui ;
+pour le carré, le roi adverse loin de son pion), puis l'échiquier est parfois retourné
+ou inversé de gauche à droite. La position n'est gardée que si elle a le bon résultat
+(gagnée quand il faut gagner, nulle quand il faut annuler) et qu'on peut s'y tromper :
+au moins un de tes coups doit laisser filer le gain ou la nulle. Tu joues tantôt les
+blancs, tantôt les noirs.
+
+Et elle ne doit pas être triviale : jamais de prise gratuite au premier coup (le roi qui
+prend le pion d'emblée) ; pour gagner, au moins trois coups avant la promotion ou la
+prise ; dans les finales de pions, où tout se joue à un temps près, pas plus de la
+moitié des coups qui tiennent.
+
+**La vérité** vient des tables de finales de Lichess (Syzygy, exactes jusqu'à 7 pièces,
+gratuites, sans compte) : le résultat de la position et de chacun de tes coups, et la
+distance au mat. Si les tables refusent pour un moment (trop de demandes), Stockfish
+prend le relais une minute.
+
+**Hors connexion**, tout marche avec Stockfish seul : il tire la position (un coup
+d'œil rapide écarte celles qui n'ont pas le bon résultat, puis il analyse chaque coup
+de celles qui restent), joue l'adversaire à pleine force et juge tes coups. Il compte
+un coup gagnant à partir de 1,5 point d'avance (ou un mat), nul jusqu'à 1 point, et
+ne te reproche jamais un coup entre les deux. Il est moins sûr que les tables (dans
+Lucena, il voit gagnants des coups qui ne le sont pas), ne donne pas la distance au
+mat, et met un peu plus de temps à tirer une position (20 secondes au plus). L'écran
+dit quand c'est lui qui juge.
+
+**L'adversaire** joue parfaitement : il garde son meilleur résultat, gagne au plus vite
+quand il gagne, résiste le plus longtemps quand il perd, et quand la position est
+nulle, Stockfish choisit parmi les coups qui la gardent nulle celui qui te pose le plus
+de problèmes. Sans les tables, c'est Stockfish à pleine force.
+
+**Pendant la partie.** Si ton coup laisse filer le gain (ou perd une position nulle),
+tu le sais tout de suite, avec les coups qui tenaient. « Reprendre le coup » revient en
+arrière ; « Continuer quand même » laisse l'adversaire te montrer comment il en profite.
+« Indice » entoure la pièce à jouer, puis la case. « L'idée » rappelle la méthode du
+thème. Pour une promotion, tu choisis la pièce.
+
+**Réussi** quand :
+
+- pour un mat de base : tu mates avant la règle des 50 coups (le bilan compare ton
+  nombre de coups au plus court) ;
+- pour gagner une finale : ton pion est promu et la position reste gagnante, ou il ne
+  lui reste que son roi, ou tu mates ;
+- pour annuler : tu tiens 8 à 15 coups sans faute selon le thème, ou la partie est
+  nulle par la règle (pat, répétition, matériel insuffisant, 50 coups).
+
+**Le niveau.** Chaque thème a son niveau, de 1 à 3. Il monte d'un quart quand tu
+réussis sans faute, sans reprise ni indice, et descend d'un quart quand tu rates.
+Pour les mats, le niveau allonge la distance au mat (au niveau 1, le roi adverse part
+du bord) ; pour les finales, il réduit le nombre de bons coups (au niveau 3, un seul
+coup tient). « Nouvelle position » ou « Terminer » en pleine partie compte un essai,
+sans toucher au niveau.
 
 ## Jouer
 
@@ -191,15 +264,17 @@ sous le formulaire :
 Compte une demi-heure environ pour 500 parties, l'entraîneur ouvert. « Arrêter » en
 route garde ce qui est fait et apprend dessus (150 positions au moins).
 
-**Ce qu'il regarde.** Pour chaque coup possible, 35 indices, avec un poids chacun :
+**Ce qu'il regarde.** Pour chaque coup possible, 43 indices, avec un poids chacun :
 ce que le coup perd selon Stockfish ; la prise et sa valeur ; la reprise ; l'échec ; le
 roque ; la pièce qui bouge ; le roi qui se promène et la dame sortie tôt ; la pièce
 attaquée mise à l'abri, le matériel laissé en prise, la menace laissée sans réponse ;
 la pièce gratuite ; la sous-promotion ; le coup qui crée une fourchette, un clouage,
 une enfilade ou une attaque à la découverte ; le mat ; la tactique ou le mat en 1
-laissé à ta meilleure réponse ; et la façon dont la perte pèse selon l'Elo de
-l'adversaire, sa pendule (moins d'une minute) et l'avancement de la partie. Il ne voit
-pas la position dans son ensemble.
+laissé à ta meilleure réponse ; la façon dont la perte pèse selon l'Elo de
+l'adversaire, sa pendule (moins d'une minute) et l'avancement de la partie ; et le sens
+du coup : la pièce recule (menacée ou non), rentre sur sa première rangée ou sur sa case
+de départ, avance, sort un cavalier ou un fou, se rapproche du centre. Il ne voit pas
+la position dans son ensemble.
 
 **Deux formes.** Le modèle simple donne un poids à chaque indice. À partir de 2 000
 positions, il essaie aussi un petit réseau à 8 neurones, qui combine les indices, et
@@ -208,6 +283,16 @@ positions d'un joueur à 450 Elo, le réseau l'emportait : premier choix juste 3
 temps, contre 37,7 % pour le modèle simple et 36,0 % pour le bot standard. Avec 2 900
 positions, les deux faisaient jeu égal : il faut des positions, pas seulement des
 parties.
+
+**Le sens des coups.** Les huit derniers indices sont arrivés plus tard. Avant eux, le
+bot ne savait pas si une pièce avance ou recule, et ça se voyait : sur les 5 078
+positions de ce joueur, il reculait une pièce que rien ne menaçait sur 6,2 % de ses
+coups (les humains : 3,3 %), rentrait un cavalier, un fou ou la dame sur sa première
+rangée sur 3,0 % (eux : 0,8 %) et remettait une pièce sur sa case de départ quatre fois
+trop souvent (2,2 % contre 0,5 %). Avec eux, il retrouve leurs proportions, et prévoit
+mieux leurs coups sur des parties qu'il n'a pas vues. Un bot appris avant ces indices
+joue comme avant ; un encart te propose de les lui apprendre, sur les positions déjà
+notées, sans Stockfish ni connexion.
 
 **Ce qu'il affiche.** Sur des parties qu'il n'a jamais vues (validation croisée par
 partie) : combien de fois son premier choix est le coup que ton adversaire a joué,
@@ -311,6 +396,24 @@ sont détaillées dans la fenêtre Synchro.
 - **Dépôt public refusé** : tes parties et ton jeton Lichess y seraient visibles de
   tous.
 - **Historique** : chaque envoi crée une version du fichier sur GitHub.
+
+## Mises à jour
+
+Au lancement, si tu es connecté, l'application demande à GitHub la dernière version
+publiée, au plus une fois par heure. Si elle est plus récente que la tienne, un bandeau
+s'affiche en haut de la page, avec ses nouveautés :
+
+- **« Mettre à jour »**, sur l'ordinateur, si l'application vient d'un clone git : le
+  serveur local fait `git pull`, puis la page se recharge. S'il refuse (un fichier que
+  tu as modifié serait écrasé), il le dit, et rien ne change. Si le serveur lui-même a
+  changé, ferme sa fenêtre et relance l'entraîneur ;
+- **« Télécharger »**, si tu l'as téléchargée en ZIP : remplace le dossier de
+  l'application, et garde `entraineur/donnees` ;
+- **« Mettre à jour »**, sur Android : l'appli télécharge l'APK, puis Android demande de
+  confirmer. La première fois, il demande aussi d'autoriser l'Entraîneur à installer
+  des applis. Tes données restent.
+
+« Plus tard » ferme le bandeau jusqu'au prochain lancement.
 
 ## Si ça ne marche pas
 

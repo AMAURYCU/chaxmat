@@ -6,4 +6,5 @@
     <string name="enregistre">File saved.</string>
     <string name="echec_enregistrement">Could not save the file.</string>
     <string name="choisir_pgn">Choose a PGN file</string>
+    <string name="maj_echec">The update failed: %1$s</string>
 </resources>

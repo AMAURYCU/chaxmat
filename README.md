@@ -33,8 +33,13 @@ Everything runs on your computer: no account, no remote server, no ads.
   leaves you a chance to find, with a level per motif; ask for endgames and it trades
   down. The bot makes as many blunders and mistakes as a player of your rating.
 - **Personal bot**: it fetches all your games, has Stockfish score your opponents’
-  possible moves, and learns how they choose (captures, checks, castling, what they
-  miss, when they blunder). Then it plays like them, and every import retrains it.
+  possible moves, and learns how they choose (captures, checks, castling, whether they
+  advance or retreat, what they miss, when they blunder). Then it plays like them, and every import retrains it.
+- **Checkmates and endgames**: 35 themes (basic mates, king and pawn, the square,
+  Lucena, Philidor, queen against pawn, queen against rook, and advanced endings up to
+  7 pieces…), each a non-trivial random position to win or to hold against perfect
+  play from the Lichess tablebases, or against Stockfish alone when offline. A move
+  that throws away the win or the draw is flagged at once, with a level per theme.
 - **Progress** day by day and one Elo curve per site.
 - **Level setting** (beginner, intermediate, advanced), which adjusts how games are
   judged.
@@ -68,6 +73,21 @@ tab.
 
 Your data lives in `entraineur/donnees/donnees.json`. That folder is ignored by git: it
 never ends up in the repository.
+
+### Updates
+
+On launch, if you are online, the app asks GitHub whether a new version has been
+published (the repository's latest *release*). If so, a banner says so, with what's new:
+
+- **installed with git**: "Update" runs `git pull` in the folder, then the page
+  reloads. If `serveur.py` changed, start the coach again;
+- **downloaded as a ZIP**: "Download" opens the release; replace the app folder and keep
+  `entraineur/donnees`;
+- **on Android**: "Update" downloads the release's APK, and Android asks you to confirm
+  the installation. Your data stays.
+
+Your data never moves: `git pull` refuses to overwrite a file you changed, and the
+`donnees` folder is ignored by git.
 
 ## Language
 
@@ -161,6 +181,8 @@ What leaves your computer:
 - requests to the **Lichess opening explorer**, if you log in to it, with no rights on
   your account;
 - your data sent to **GitHub**, if you turn on sync;
+- on launch, one request to the **GitHub API** to check whether a new version is out (at
+  most once an hour; it sends nothing about you);
 - loading the **Google Fonts**.
 
 The local server refuses any request that does not come from the page itself.
