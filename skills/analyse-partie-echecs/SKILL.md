@@ -20,16 +20,37 @@ Deux fonctions. Identifier laquelle est demandée avant de commencer :
 Réponds dans la langue de l'utilisateur. Les gabarits HTML sont en français ; les
 textes du rapport sont ceux que tu écris.
 
-## 0. Le profil du joueur (facultatif)
+## 0. Le profil du joueur
 
-Si un fichier `profil.md` existe à côté de ce SKILL.md, le lire d'abord : pseudo, site,
-niveau, ton souhaité, habitudes déjà observées. `profil-exemple.md` montre le format.
-Sans profil, demander le pseudo et le site (chess.com ou Lichess), et déduire le niveau
-de l'Elo des parties.
+Si un fichier `profil.md` existe à côté de ce SKILL.md, et qu'il est rempli, le lire
+d'abord : pseudo, site, niveau, ton souhaité, habitudes déjà observées.
+`profil-exemple.md` montre le format.
+
+**S'il manque, ou s'il est encore l'exemple** (pseudo `mon_pseudo`, lignes
+« Exemple : … »), le remplir avec l'utilisateur avant d'analyser, au lieu de lui demander
+de le faire. Poser les questions en une fois, dans sa langue, avec l'outil de questions
+quand il existe (choix proposés et réponse libre), sinon dans le message :
+
+1. Son pseudo, et le site : chess.com, Lichess ou les deux.
+2. Son niveau : l'Elo et la cadence habituelle (sinon, le lire dans ses parties).
+3. Le ton : tutoiement ou vouvoiement, direct ou plus doux.
+4. Ce qu'il veut dans les rapports : toutes les erreurs ou les cinq moments clés,
+   séquences animées ou diagrammes simples.
+5. Ce qu'il pense rater le plus souvent (facultatif) : ce sera la première hypothèse à
+   vérifier, pas une conclusion.
+
+Écrire ensuite `profil.md` à côté de ce SKILL.md, au format de `profil-exemple.md`,
+avec ses réponses et sans les lignes d'exemple. Laisser « Habitudes déjà observées » vide
+tant qu'aucune analyse ne l'a montré, puis le compléter à la fin de chaque analyse avec
+ce qui a été vérifié sur ses parties. Si l'utilisateur ne veut pas répondre, analyser
+quand même : demander seulement le pseudo et le site, et déduire le niveau de l'Elo des
+parties.
+
+Si le skill ne peut pas écrire de fichier (Claude sur le web), donner le contenu de
+`profil.md` à la fin pour que l'utilisateur l'enregistre.
 
 Un profil est un **diagnostic à confirmer ou à infirmer** à chaque partie, pas un texte
-à recopier. S'il manque, proposer à la fin de l'analyse de le créer avec ce qu'on a
-appris.
+à recopier.
 
 ---
 

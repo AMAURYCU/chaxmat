@@ -46,9 +46,20 @@ parties par correspondance et, sur Lichess, les variantes (Chess960…).
 
 Les parties des deux sites se retrouvent dans les mêmes indicateurs, gaffes et
 exercices. Seul le classement Elo reste séparé : l'onglet Progression trace une courbe
-par site, car un classement chess.com et un classement Lichess ne se comparent pas. Elle passe ensuite chaque coup à Stockfish, en comptant
-une quinzaine de secondes par partie en qualité normale. Tu obtiens les indicateurs
-du jour, la liste des parties et celle des gaffes.
+par site, car un classement chess.com et un classement Lichess ne se comparent pas.
+
+Elle lit ensuite les parties (le journal affiche « lecture des parties : 120 sur 466 »),
+puis passe chaque coup à Stockfish, en comptant une quinzaine de secondes par partie en
+qualité normale sur un ordinateur, plusieurs fois plus sur un téléphone. Le journal
+affiche la partie en cours et le temps restant. Chaque partie est enregistrée dès
+qu'elle est analysée : « Arrêter » garde ce qui est fait, et le prochain import reprend
+l'analyse des parties restantes. Tu obtiens les indicateurs du jour, la liste des
+parties et celle des gaffes.
+
+Ton point de départ, celui des indicateurs, est la moyenne de tes parties des 30 jours
+qui suivent la première partie importée. Il suit les parties importées : si tu importes
+ensuite des parties plus anciennes, il recule jusqu'à la première. Seule une pause de
+plus de deux mois sans partie le fait repartir après la pause.
 
 Chaque indicateur est comparé à **deux repères** :
 

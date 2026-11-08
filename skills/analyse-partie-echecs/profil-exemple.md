@@ -1,8 +1,10 @@
 # Profil du joueur (exemple)
 
-Copie ce fichier en `profil.md`, dans le même dossier que `SKILL.md`, et remplace les
-exemples. Le skill le lit avant chaque analyse. Ne publie pas ton `profil.md` si tu ne
-veux pas que ces informations soient publiques.
+Tu n'as rien à faire : à la première analyse, Claude te pose les questions et écrit
+`profil.md` pour toi. Pour le remplir à la main, copie ce fichier en `profil.md`, dans le
+même dossier que `SKILL.md`, et remplace les exemples. Le skill le lit avant chaque
+analyse. Ne publie pas ton `profil.md` si tu ne veux pas que ces informations soient
+publiques.
 
 ## Qui
 

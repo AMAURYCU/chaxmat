@@ -277,21 +277,34 @@ class Moteur {
 }
 
 /* ========================================================== règles / tactique */
+/* Les prises légales vers `sq` ne sont générées que pour les pièces qui
+   l'attaquent, avec les fonctions internes de chess.js (_moves, _makeMove :
+   la copie de vendor/ est figée). moves({ verbose: true }) construisait pour
+   chaque coup possible sa notation et deux FEN : une seconde par partie à
+   l'import, plusieurs sur un téléphone. Même choix de prise (la moins chère,
+   la première dans l'ordre du plateau à valeur égale), mêmes résultats sur
+   les 476 parties de test. */
+function case0x88(sq) { return (8 - +sq[1]) * 16 + (sq.charCodeAt(0) - 97); }
 function seeGain(fen, sq, cote) {
   let b;
   try { b = new Chess(fen); } catch (e) { return 0; }
   const cible = b.get(sq);
   if (!cible) return 0;
   try { b.setTurn(cote); } catch (e) { return 0; }
+  const ici = case0x88(sq);
   const gains = []; let val = VAL[cible.type];
   for (let k = 0; k < 14; k++) {
-    let cands = [];
-    try { cands = b.moves({ verbose: true }).filter(m => m.to === sq && m.captured); } catch (e) { break; }
-    if (!cands.length) break;
-    cands.sort((x, y) => VAL[x.piece] - VAL[y.piece]);
-    const m = cands[0];
+    let m = null;
+    try {
+      for (const de of b.attackers(sq, b.turn())) {
+        for (const c of b._moves({ legal: true, square: de })) {
+          if (c.to === ici && c.captured && (!m || VAL[c.piece] < VAL[m.piece])) m = c;
+        }
+      }
+    } catch (e) { break; }
+    if (!m) break;
     gains.push(val); val = VAL[m.piece];
-    try { b.move(m); } catch (e) { break; }
+    try { b._makeMove(m); } catch (e) { break; }
   }
   let net = 0;
   for (let i = gains.length - 1; i >= 0; i--) net = Math.max(0, gains[i] - net);
@@ -344,7 +357,13 @@ function lirePgn(g, pseudo) {
   const cm = {}; for (const x of c.getComments()) cm[x.fen] = x.comment;
   const blanc = g.white.username.toLowerCase() === pseudo.toLowerCase();
   const moi = blanc ? 'w' : 'b';
-  const coups = rejouer(c.history(), (i, fen) => parseClk(cm[fen]));
+  /* l'historique détaillé donne chaque coup et ses deux positions : pas
+     besoin de rejouer la partie une deuxième fois (comme rejouer()) */
+  const coups = c.history({ verbose: true }).map((mv, i) => ({
+    san: mv.san, from: mv.from, to: mv.to, captured: mv.captured || null,
+    fenAvant: mv.before, fenApres: mv.after, trait: mv.color, clk: parseClk(cm[mv.after]),
+    numero: Math.floor(i / 2) + 1,
+  }));
   const res = g.white.result === 'win' ? '1-0' : (g.black.result === 'win' ? '0-1' : '1/2-1/2');
   const score = res === '1/2-1/2' ? .5 : ((res === '1-0') === blanc ? 1 : 0);
   const base = parseInt((g.time_control || '600').split('+')[0], 10) || 600;
@@ -1117,12 +1136,36 @@ function signalerChamp(id, message, log) {
   c.focus();
   if (c.reportValidity) c.reportValidity();
 }
+/* « 3 h 10 min », « 12 min », « 1 min » (minutes en entrée) */
+function dureeTexte(min) {
+  const m = Math.max(1, Math.round(min));
+  return m < 60 ? tx('{0} min', [m]) : tx('{0} h {1} min', [Math.floor(m / 60), m % 60]);
+}
 async function lancerImport() {
   const ps = { chesscom: $('#pseudo').value.trim(), lichess: $('#pseudo-lichess').value.trim() };
   const depuis = $('#depuis').value || aujourdhui();
   const noeuds = parseInt($('#profondeur').value, 10);
   const jr = $('#journal'); jr.hidden = false; jr.textContent = '';
-  const log = (m) => { jr.textContent += m + '\n'; jr.scrollTop = jr.scrollHeight; };
+  /* `progres` réécrit sa propre ligne au lieu d'en ajouter une : « lecture
+     des parties : 120 sur 466 » ne remplit pas le journal. */
+  let debutProgres = null;
+  const log = (m) => { debutProgres = null; jr.textContent += m + '\n'; jr.scrollTop = jr.scrollHeight; };
+  const progres = (m) => {
+    const t = jr.textContent;
+    if (debutProgres === null) debutProgres = t.length;
+    jr.textContent = t.slice(0, debutProgres) + m + '\n'; jr.scrollTop = jr.scrollHeight;
+  };
+  /* Lire et examiner 400 parties prend une minute sur un téléphone : on rend
+     la main à la page toutes les 40 ms, sinon elle ne s'affiche plus et un
+     appui sur un bouton fige l'appli (Android croit qu'elle ne répond plus). */
+  let tranche = performance.now();
+  const respirer = async () => {
+    if (performance.now() - tranche < 40) return false;
+    await new Promise(r => setTimeout(r, 0));
+    tranche = performance.now();
+    return true;
+  };
+  const pct = (i, n) => Math.floor(100 * i / Math.max(1, n));
   const prog = $('#prog'), barre = $('i', prog);
   /* Aucun pseudo : erreur. Un seul : on importe ce site-là. */
   if (!ps.chesscom && !ps.lichess) {
@@ -1136,49 +1179,74 @@ async function lancerImport() {
     const pb = await verifierPseudos(ps);
     if (pb) { signalerChamp(pb.champ, pb.message, log); return; }
     S.d.reglages.pseudo = ps.chesscom; S.d.reglages.pseudoLichess = ps.lichess; sauver();
-    const nouvelles = [];
+    /* les parties reçues, pas encore lues */
+    const recues = [];
     if (ps.chesscom) {
       for (const g of await importerParties(ps.chesscom, depuis, log)) {
-        if (S.d.parties[g.url]) continue;
-        const p = lirePgn(g, ps.chesscom);
-        if (p) nouvelles.push(p);
+        if (!S.d.parties[g.url]) recues.push(() => lirePgn(g, ps.chesscom));
       }
     }
     if (ps.lichess) {
       for (const g of await importerLichess(ps.lichess, depuis, log)) {
-        if (S.d.parties['https://lichess.org/' + g.id]) continue;
-        const p = lireLichess(g, ps.lichess);
-        if (p) nouvelles.push(p);
+        if (!S.d.parties['https://lichess.org/' + g.id]) recues.push(() => lireLichess(g, ps.lichess));
       }
     }
+    /* lecture des coups et premier examen (pièces en prise, menaces), sans Stockfish */
+    const nouvelles = [];
+    if (recues.length) progres(tx('lecture des parties : 0 sur {0} (0 %)', [recues.length]));
+    for (let i = 0; i < recues.length; i++) {
+      if (S.stop) break;
+      const p = recues[i]();
+      if (p) { p.stat = analyseStatique(p); nouvelles.push(p); }
+      if (await respirer()) progres(tx('lecture des parties : {0} sur {1} ({2} %)', [i + 1, recues.length, pct(i + 1, recues.length)]));
+    }
+    if (recues.length && !S.stop) progres(tx('lecture des parties : {0} sur {0} (100 %)', [recues.length]));
     nouvelles.sort((a, b) => a.fin - b.fin);
     log(tx('{0} nouvelle(s) partie(s) à analyser.', [nouvelles.length]));
-    for (const p of nouvelles) {
-      p.stat = analyseStatique(p);
-    }
-    if (!DEGRADE && nouvelles.length) {
+    /* Les parties déjà rangées sans analyse (import arrêté en route) passent
+       après les nouvelles : relancer l'import reprend là où il s'était arrêté. */
+    const reprises = DEGRADE ? [] : Object.values(S.d.parties).filter(p => !p.moteur).sort((a, b) => a.fin - b.fin);
+    if (reprises.length) log(tx('{0} partie(s) importée(s) avant restent à analyser : elles suivent.', [reprises.length]));
+    const file = nouvelles.map(p => ({ p, nb: p.coups.length }))
+      .concat(reprises.map(r => ({ rangee: r, nb: (r.sans || '').split(' ').filter(Boolean).length })));
+    /* Chaque partie est rangée dès qu'elle est analysée : « Arrêter », ou
+       Android qui ferme l'appli, ne fait rien perdre de ce qui est fait. */
+    const ranger = (p) => { S.d.parties[p.url] = compacter(p); };
+    let analysees = 0;
+    if (!DEGRADE && file.length && !S.stop) {
       if (!S.moteur) { log(tx('démarrage de Stockfish…')); S.moteur = new Moteur(); await S.moteur.pret(); }
-      const total = nouvelles.reduce((a, p) => a + p.coups.length + 1, 0);
+      const total = file.reduce((a, x) => a + x.nb + 1, 0);
       let fait = 0; prog.hidden = false;
-      for (const p of nouvelles) {
-        if (S.stop) { log(tx('interrompu.')); break; }
-        log(tx('analyse : {0} ({1} demi-coups)…', [p.adversaire, p.coups.length]));
+      const t0 = Date.now();
+      for (const [k, x] of file.entries()) {
+        if (S.stop) break;
+        const p = x.p || deplier(x.rangee);
+        const reste = fait ? (Date.now() - t0) / fait * (total - fait) / 60000 : null;
+        progres(tx('analyse Stockfish : partie {0} sur {1} ({2}, {3} demi-coups)', [k + 1, file.length, p.adversaire, p.coups.length])
+          + (reste === null ? '' : ' · ' + tx('encore {0} environ', [dureeTexte(reste)])));
         const r = await analyseMoteur(p, noeuds, () => {
           fait++; barre.style.width = Math.round(100 * fait / total) + '%';
         });
-        if (r) p.moteur = r;
+        if (!r) break;
+        if (x.p) { p.moteur = r; ranger(p); } else x.rangee.moteur = r;
+        analysees++;
+        if (analysees % 5 === 0) sauver();
       }
       prog.hidden = true;
+      if (S.stop) log(tx('interrompu : {0} partie(s) analysée(s) sur {1}. Les autres sont gardées : relance l’import pour reprendre l’analyse.', [analysees, file.length]));
     } else if (DEGRADE) {
       log(tx('mode simplifié : analyse Stockfish ignorée.'));
+    } else if (S.stop) {
+      log(tx('interrompu pendant la lecture : {0} partie(s) gardée(s), sans analyse Stockfish. Relance l’import pour les analyser.', [nouvelles.length]));
     }
-    for (const p of nouvelles) {
-      S.d.parties[p.url] = compacter(p);
-    }
-    const jours = new Set(nouvelles.map(p => p.date));
+    for (const p of nouvelles) if (!S.d.parties[p.url]) ranger(p);
+    if (file.length) progres(tx('mise à jour des statistiques et des exercices…'));
+    await new Promise(r => setTimeout(r, 0));
+    const jours = new Set(nouvelles.map(p => p.date).concat(reprises.filter(p => p.moteur).map(p => p.date)));
     for (const d of jours) majJour(d);
     const avant = Object.keys(S.d.exos || {}).length;
     collecterExos();
+    if (file.length) log(tx('statistiques et exercices à jour.'));
     const ajout = Object.keys(S.d.exos).length - avant;
     if (ajout > 0) log(tx('{0} exercice(s) ajouté(s) à l’entraînement.', [ajout]));
     sauver();

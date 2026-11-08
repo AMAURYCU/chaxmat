@@ -162,8 +162,10 @@ séance avec Stockfish, vérifie chaque affirmation, puis produit un rapport HTM
   en ZIP. Va ensuite dans *Customize → Skills → + → Create skill → Upload a skill*.
   L'exécution de code doit être activée.
 
-Pour que Claude connaisse ton pseudo, ton niveau et tes habitudes, copie
-`profil-exemple.md` en `profil.md` et remplis-le. `profil.md` est ignoré par git.
+À la première analyse, Claude te pose quelques questions (pseudo, site, niveau, ton,
+ce que tu veux dans les rapports) et écrit `profil.md` pour toi. Il le complète ensuite
+avec les habitudes vérifiées sur tes parties. Tu peux aussi copier `profil-exemple.md` en
+`profil.md` et le remplir à la main. `profil.md` est ignoré par git.
 
 Les scripts du skill s'utilisent aussi sans Claude. Il faut Python 3.7 ou plus récent,
 Stockfish et `pip install -r requirements.txt` :
@@ -216,3 +218,5 @@ chess.js, les pièces « cburnett »…) et leurs licences sont listés dans
 
 Projet personnel et gratuit, fourni sans garantie. Il n'est lié ni à chess.com, ni à
 Lichess, ni à Anthropic.
+
+Une part non négligeable du code de ce dépôt a été générée par IA (Claude, d'Anthropic).
