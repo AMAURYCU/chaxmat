@@ -5,7 +5,8 @@
    - sur Android, l'APK joint à la release est téléchargé, puis Android
      affiche son écran d'installation. Tes données restent : c'est la même
      appli, signée avec la même clé ;
-   - sur l'ordinateur, le serveur local fait « git pull » si l'appli vient
+   - sur l'ordinateur, le serveur local avance le clone git jusqu'à la version
+     publiée (git fetch --tags, puis git merge --ff-only du tag) si l'appli vient
      d'un clone git, puis la page se recharge. Sinon, un lien vers la release.
    Une seule requête, qui n'envoie rien de toi, et au plus une par heure : la
    réponse est gardée dans le navigateur. Sans release (ou tant que le dépôt
@@ -97,7 +98,7 @@ const Maj = {
       if (i.apk) {
         boutons.append(el('button', { class: 'b', type: 'button', onclick: (e) => this.installer(e.currentTarget) },
           tx('Mettre à jour ({0} Mo)', [this.mo(i.taille)])));
-        let peut = true; try { peut = PontAndroid.peutInstaller(); } catch (e) { }
+        let peut = true; try { peut = PontAndroid.peutInstaller(); } catch (e) { /* ancienne appli Android sans cette fonction : on propose quand même */ }
         if (!peut) {
           etat.hidden = false;
           etat.textContent = tx('La première fois, Android te demandera d’autoriser Chaxmat à installer des applis : c’est pour sa propre mise à jour.');
@@ -153,7 +154,7 @@ const Maj = {
   },
 
   /* ------------------------------------------------------------ ordinateur */
-  /* Le serveur local sait-il faire « git pull » ? (pas en mode simplifié, ni
+  /* Le serveur local sait-il mettre à jour par git ? (pas en mode simplifié, ni
      avec un serveur d'avant cette fonction) */
   async etatServeur() {
     if (typeof DEGRADE !== 'undefined' && DEGRADE) return false;
@@ -165,18 +166,20 @@ const Maj = {
   },
   async tirer(bouton) {
     bouton.disabled = true;
-    this.message(tx('Mise à jour en cours (git pull)…'));
+    this.message(tx('Mise à jour vers la version {0} en cours (git)…', [this.info.version]));
     let j = null;
     try {
-      const r = await fetch('/api/maj', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      /* la version annoncée, et pas ce qui a été poussé depuis sur la branche */
+      const r = await fetch('/api/maj', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tag: this.info.tag }) });
       j = await r.json();
     } catch (e) { j = { ok: false, sortie: e.message }; }
     if (!j.ok) {
-      this.message(tx('git pull a échoué : {0} Tu peux le faire à la main dans le dossier de l’application.', [(j.sortie || '').trim().split('\n').slice(-3).join(' ')]), true);
+      this.message(tx('La mise à jour par git a échoué : {0} Tu peux la faire à la main dans le dossier de l’application : git fetch --tags, puis git merge --ff-only {1}.', [(j.sortie || '').trim().split('\n').slice(-3).join(' '), this.info.tag]), true);
       this.rearmer();
       return;
     }
-    if (!j.change) { this.message(tx('Rien de nouveau dans ton clone : la release n’est peut-être pas encore sur ta branche.')); return; }
+    if (!j.change) { this.message(tx('Rien à faire : ton clone contient déjà la version {0}.', [this.info.version])); return; }
     if (j.serveur) {
       this.message(tx('Mise à jour faite. Le serveur a changé aussi : ferme sa fenêtre et relance l’entraîneur.'));
       bouton.replaceWith(el('button', { class: 'b', type: 'button', onclick: () => location.reload() }, tx('Recharger')));

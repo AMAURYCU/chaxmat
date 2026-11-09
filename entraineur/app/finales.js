@@ -280,7 +280,7 @@
     const lignes = await moteur.multi(fen, noeuds || 300000, Math.min(40, n));
     const coups = lignes.map(l => {
       let san = l.uci;
-      try { san = new (Ch())(fen).move({ from: l.uci.slice(0, 2), to: l.uci.slice(2, 4), promotion: l.uci[4] || 'q' }).san; } catch (e) { }
+      try { san = new (Ch())(fen).move({ from: l.uci.slice(0, 2), to: l.uci.slice(2, 4), promotion: l.uci[4] || 'q' }).san; } catch (e) { /* coup illégal dans cette position : on garde la valeur par défaut */ }
       const dtm = l.cp > 9000 ? 2 * (10000 - l.cp) - 1 : l.cp < -9000 ? -2 * (10000 + l.cp) : null;
       return { uci: l.uci, san, v: classeCp(l.cp), cp: l.cp, dtm, dtz: null };
     });
@@ -487,7 +487,7 @@ async function lancerFinale(id) {
   etatF(enLigne ? tx('Je tire une position…') : tx('Hors ligne : Stockfish cherche une position…'), 'info');
   window.scrollTo(0, 0);
   if (typeof DEGRADE === 'undefined' || !DEGRADE) {
-    if (!FIN.moteur) FIN.moteur = new Moteur();
+    if (!FIN.moteur || !FIN.moteur.vivant()) FIN.moteur = new Moteur();
     await FIN.moteur.pret();
   }
   /* Hors ligne (ou les tables muettes), Stockfish fait tout : un coup d'œil

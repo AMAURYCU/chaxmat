@@ -6,7 +6,8 @@ page elle-meme :
 - /api/donnees, pour lire (GET) et ecrire (POST) donnees/donnees.json ; elle
   refuse d'ecraser le fichier si un autre onglet l'a modifie entre-temps ;
 - /api/maj, pour la mise a jour : GET dit si l'appli vient d'un clone git,
-  POST fait "git pull --ff-only" (tes donnees, ignorees par git, restent).
+  POST avance le clone jusqu'a la version publiee demandee (un tag vAAAA.MM.JJ),
+  en avance rapide seulement (tes donnees, ignorees par git, restent).
 Rien ne sort de ta machine, sauf les appels que le navigateur fait aux API
 publiques de chess.com et de Lichess, a GitHub pour savoir si une nouvelle
 version est publiee, et a GitHub encore si tu actives la synchronisation.
@@ -15,15 +16,31 @@ Lancement : python3 serveur.py
   macOS   : double-clic sur "Ouvrir l'entraineur.command"
   Windows : double-clic sur "ouvrir-entraineur.bat"
   Linux   : ./ouvrir-entraineur.sh
+
+Variables d'environnement, pour les tests surtout :
+  CHAXMAT_DONNEES    dossier des donnees (defaut : donnees/ a cote de ce fichier)
+  CHAXMAT_PORT       premier port essaye (defaut : 8787)
+  CHAXMAT_NAVIGATEUR 0 pour ne pas ouvrir le navigateur
 """
-import http.server, socketserver, json, os, sys, threading, webbrowser, socket, subprocess
+import hashlib, http.server, socketserver, json, os, re, sys, threading, webbrowser, socket, subprocess
 from urllib.parse import urlsplit, parse_qs
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(BASE, "app")
-DATA_DIR = os.path.join(BASE, "donnees")
+DATA_DIR = os.environ.get("CHAXMAT_DONNEES") or os.path.join(BASE, "donnees")
 DATA = os.path.join(DATA_DIR, "donnees.json")
 os.makedirs(DATA_DIR, exist_ok=True)
+
+# Un corps plus gros n'est pas des donnees d'entraineur : on refuse au lieu
+# de tout charger en memoire. (2 Mo pour ~500 parties analysees.)
+TAILLE_MAX = 64 * 1024 * 1024
+# Le controle de revision et l'ecriture se font d'un seul tenant : deux
+# onglets qui enregistrent en meme temps ne peuvent pas passer tous les deux.
+VERROU = threading.Lock()
+# Une seule mise a jour a la fois.
+VERROU_MAJ = threading.Lock()
+# Les versions publiees : v2026.11.09, v2026.11.09.1...
+TAG = re.compile(r"^v\d{4}\.\d{2}\.\d{2}(\.\d{1,3})?$")
 
 MIMES = {
     ".js": "application/javascript; charset=utf-8",
@@ -36,12 +53,19 @@ MIMES = {
 }
 
 
+def empreinte(octets):
+    """Revision d'un contenu ; "0" pour un fichier absent ou vide."""
+    return hashlib.blake2b(octets, digest_size=8).hexdigest() if octets else "0"
+
+
 def revision():
-    """Identifiant de la version du fichier sur le disque. Change a chaque
-    ecriture : un onglet reste ouvert depuis longtemps le detecte."""
+    """Identifiant de la version du fichier sur le disque : l'empreinte de son
+    contenu. Un onglet reste ouvert depuis longtemps detecte toute ecriture,
+    meme sur un disque dont l'horloge des fichiers est grossiere (exFAT : 2 s),
+    la ou date et taille pouvaient ne pas bouger."""
     try:
-        st = os.stat(DATA)
-        return "%d-%d" % (st.st_mtime_ns, st.st_size)
+        with open(DATA, "rb") as f:
+            return empreinte(f.read())
     except OSError:
         return "0"
 
@@ -63,17 +87,24 @@ def etat_git():
     return {"git": r.returncode == 0 and r.stdout.strip() == "true"}
 
 
-def mettre_a_jour():
-    """git pull --ff-only : jamais de fusion ni d'ecrasement. S'il y a des
-    modifications locales en conflit, git refuse et on rend son message."""
+def mettre_a_jour(tag):
+    """Avance le clone jusqu'a la version publiee `tag`, et seulement elle :
+    pas ce qui a ete pousse sur la branche depuis. Avance rapide uniquement :
+    jamais de fusion ni d'ecrasement. S'il y a des modifications locales en
+    conflit, git refuse et on rend son message."""
+    if not TAG.match(tag or ""):
+        return 400, {"ok": False, "sortie": "version invalide : %r" % (tag,)}
     if not etat_git()["git"]:
         return 400, {"ok": False, "sortie": "pas un clone git"}
     try:
         avant = git("rev-parse", "HEAD").stdout.strip()
-        r = git("pull", "--ff-only", timeout=120)
+        f = git("fetch", "--tags", "origin", timeout=120)
+        if f.returncode != 0:
+            return 500, {"ok": False, "sortie": (f.stdout + f.stderr)[-2000:]}
+        r = git("merge", "--ff-only", "refs/tags/" + tag, timeout=60)
         apres = git("rev-parse", "HEAD").stdout.strip()
     except subprocess.TimeoutExpired:
-        return 500, {"ok": False, "sortie": "git pull trop long (plus de 2 minutes)"}
+        return 500, {"ok": False, "sortie": "git trop long (plus de 2 minutes)"}
     except (OSError, subprocess.SubprocessError) as e:
         return 500, {"ok": False, "sortie": str(e)}
     fichiers = []
@@ -116,6 +147,19 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return False
         return True
 
+    def lire_corps(self):
+        """Le corps de la requete, ou (None, code d'erreur) : longueur absente,
+        illisible, negative ou trop grande."""
+        try:
+            n = int(self.headers.get("Content-Length") or "")
+        except ValueError:
+            return None, 411
+        if n > TAILLE_MAX:
+            return None, 413
+        if n <= 0:
+            return None, 400
+        return self.rfile.read(n), 200
+
     def do_GET(self):
         if urlsplit(self.path).path == "/api/maj":
             if not self.hote_local():
@@ -127,14 +171,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if not self.hote_local():
                 self.send_error(403)
                 return
-            payload = b"{}"
-            if os.path.exists(DATA):
-                with open(DATA, "rb") as f:
-                    payload = f.read() or b"{}"
+            with VERROU:
+                payload = b""
+                if os.path.exists(DATA):
+                    with open(DATA, "rb") as f:
+                        payload = f.read()
+                rev = empreinte(payload)
+            payload = payload or b"{}"
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Content-Length", str(len(payload)))
-            self.send_header("X-Revision", revision())
+            self.send_header("X-Revision", rev)
             self.end_headers()
             self.wfile.write(payload)
             return
@@ -162,14 +209,31 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if not (self.headers.get("Content-Type") or "").startswith("application/json"):
                 self.send_error(415)
                 return
-            code, rep = mettre_a_jour()
+            raw, code = self.lire_corps()
+            if raw is None:
+                self.send_error(code)
+                return
+            try:
+                demande = json.loads(raw.decode("utf-8"))
+            except ValueError:
+                self.send_error(400, "JSON invalide")
+                return
+            if not VERROU_MAJ.acquire(blocking=False):
+                self.repondre_json(409, {"ok": False, "sortie": "mise a jour deja en cours"})
+                return
+            try:
+                code, rep = mettre_a_jour(demande.get("tag") if isinstance(demande, dict) else None)
+            finally:
+                VERROU_MAJ.release()
             self.repondre_json(code, rep)
             return
-        n = int(self.headers.get("Content-Length") or 0)
-        raw = self.rfile.read(n)
+        raw, code = self.lire_corps()
+        if raw is None:
+            self.send_error(code)
+            return
         try:
             obj = json.loads(raw.decode("utf-8"))
-        except Exception as e:
+        except ValueError as e:
             self.send_error(400, "JSON invalide: %s" % e)
             return
         if not isinstance(obj, dict) or not obj:
@@ -178,14 +242,29 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         # La page envoie la revision qu'elle a lue. Si le fichier a change
         # depuis (un autre onglet a enregistre), on refuse au lieu d'ecraser.
         base = (parse_qs(url.query).get("base") or [None])[0]
-        if base is not None and base != revision():
-            self.repondre_json(409, {"rev": revision()})
-            return
-        tmp = DATA + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(obj, f, ensure_ascii=False, indent=1)
-        os.replace(tmp, DATA)
-        self.repondre_json(200, {"rev": revision()})
+        texte = json.dumps(obj, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        with VERROU:
+            actuelle = revision()
+            if base is not None and base != actuelle:
+                self.repondre_json(409, {"rev": actuelle})
+                return
+            tmp = DATA + ".tmp"
+            with open(tmp, "wb") as f:
+                f.write(texte)
+                f.flush()
+                # sur le disque avant le renommage : une coupure de courant
+                # laisse l'ancien fichier ou le nouveau, jamais un fichier vide
+                os.fsync(f.fileno())
+            os.replace(tmp, DATA)
+            rev = empreinte(texte)
+        self.repondre_json(200, {"rev": rev})
+
+
+class Serveur(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    """Une requete par fil : une mise a jour git (jusqu'a 2 minutes)
+    n'empeche plus d'enregistrer ni de charger la page."""
+    daemon_threads = True
+    allow_reuse_address = True
 
 
 def port_libre(depart=8787):
@@ -200,21 +279,21 @@ def port_libre(depart=8787):
 
 
 def main():
-    port = port_libre()
+    port = port_libre(int(os.environ.get("CHAXMAT_PORT") or 8787))
     if not port:
-        print("Aucun port libre trouve entre 8787 et 8827. / No free port between 8787 and 8827.")
+        print("Aucun port libre trouve a partir de 8787. / No free port from 8787.")
         sys.exit(1)
     url = "http://127.0.0.1:%d/" % port
-    socketserver.TCPServer.allow_reuse_address = True
-    with socketserver.TCPServer(("127.0.0.1", port), Handler) as httpd:
+    with Serveur(("127.0.0.1", port), Handler) as httpd:
         print("=" * 58)
         print("  Chaxmat - entraineur d'echecs / chess trainer")
         print("  " + url)
         print("  Donnees / Data : %s" % DATA)
         print("  Ferme cette fenetre (ou Ctrl-C) pour arreter.")
         print("  Close this window (or press Ctrl-C) to stop.")
-        print("=" * 58)
-        threading.Timer(0.8, lambda: webbrowser.open(url)).start()
+        print("=" * 58, flush=True)
+        if os.environ.get("CHAXMAT_NAVIGATEUR") != "0":
+            threading.Timer(0.8, lambda: webbrowser.open(url)).start()
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:

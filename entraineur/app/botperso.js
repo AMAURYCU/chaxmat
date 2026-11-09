@@ -280,7 +280,7 @@ async function creerBotPerso() {
     const maj = !!botPerso();
     const neuves = ajouterAuLivreBP(parties);
     etapeBP(tx('Stockfish note tous les coups possibles de tes adversaires'));
-    if (!BP.moteur) BP.moteur = new Moteur();
+    if (!BP.moteur || !BP.moteur.vivant()) BP.moteur = new Moteur();
     await BP.moteur.pret();
     /* mise à jour : les parties nouvelles d'abord, sans plafond ; ensuite,
        jusqu'au plafond, ce qu'un arrêt avait laissé en route */
@@ -331,7 +331,10 @@ async function majBotPersoApresImport(nouvelles, moteur, log) {
   BP.enCours = true;
   try {
     log(tx('Bot personnalisé : {0} nouvelle(s) partie(s) à apprendre…', [neuves.length]));
-    if (!moteur) { moteur = BP.moteur = BP.moteur || new Moteur(); await moteur.pret(); }
+    if (!moteur || !moteur.vivant()) {
+      if (!BP.moteur || !BP.moteur.vivant()) BP.moteur = new Moteur();
+      moteur = BP.moteur; await moteur.pret();
+    }
     await deroulerBP(neuves, moteur, () => { }, () => S.stop || BP.stop, Infinity);
     await entrainerBP(log, true);
   } catch (e) {

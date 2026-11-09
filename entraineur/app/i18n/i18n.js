@@ -56,7 +56,7 @@ const I18N = (() => {
   /* la langue se choisit au premier besoin : les dictionnaires sont chargés */
   const L = () => LANGUES[langue || choisir()];
   function changer(code) {
-    try { localStorage.setItem('langue', code); } catch (e) { }
+    try { localStorage.setItem('langue', code); } catch (e) { /* stockage du navigateur interdit : la langue reviendra au défaut */ }
     location.reload();
   }
   function tx(fr, valeurs) {

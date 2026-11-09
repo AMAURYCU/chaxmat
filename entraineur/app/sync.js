@@ -58,7 +58,7 @@ const Sync = {
   },
   async erreurHttp(r, quoi) {
     let msg = '';
-    try { msg = (await r.json()).message || ''; } catch (e) { }
+    try { msg = (await r.json()).message || ''; } catch (e) { /* réponse sans JSON : le statut HTTP suffit */ }
     if (r.status === 401) return new Error(tx('jeton refusé : expiré ou mal copié'));
     if (r.status === 403 && /rate limit/i.test(msg)) return new Error(tx('trop de requêtes, nouvel essai plus tard'));
     if (r.status === 403) return new Error(tx('le jeton n’a pas le droit d’écrire (Contents : Read and write)'));
@@ -327,85 +327,4 @@ const Sync = {
   },
 };
 
-/* ==========================================================================
-   Fusion à trois voies de deux versions des données.
-   ========================================================================== */
-const Fusion = {
-  egal(a, b) {
-    if (a === b) return true;
-    if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false;
-    return JSON.stringify(a) === JSON.stringify(b);
-  },
-  objet(x) { return x !== null && typeof x === 'object' && !Array.isArray(x); },
-  /* Éléments qu'on ne mélange jamais champ par champ : quand les deux côtés
-     les ont changés, on garde le plus avancé (critères comparés dans l'ordre,
-     égalité → la version de cet appareil). */
-  ATOMES: {
-    exos: (x) => [(x.reussites || 0) + (x.echecs || 0), x.dernier || x.vuLe || '', x.vues || 0],
-    quizOuv: (x) => [(x.ok || 0) + (x.ko || 0), x.dernier || ''],
-    parties: (x) => [x.moteur ? 1 : 0, JSON.stringify(x).length],
-    partiesBot: (x) => [x.moteur ? 1 : 0, JSON.stringify(x).length],
-    botPositions: (x) => [Array.isArray(x) ? x.length : 0],
-    finales: (x) => [x.essais || 0, x.dernier || ''],
-    jours: (x) => [x.parties || 0, x.coups || 0],
-    cartes: (x) => [JSON.stringify(x).length],
-  },
-  /* fiche de révision d'une position dans un répertoire */
-  srs: (x) => [x && x.reps || 0, x && x.du || ''],
-  comparer(a, b) {
-    for (let i = 0; i < Math.max(a.length, b.length); i++) {
-      if (a[i] === b[i]) continue;
-      if (a[i] === undefined) return -1;
-      if (b[i] === undefined) return 1;
-      return a[i] > b[i] ? 1 : -1;
-    }
-    return 0;
-  },
-  /**
-   * base : la dernière version commune ; local : celle de cet appareil ;
-   * distant : celle de GitHub. `pref` décide les conflits sur une valeur
-   * simple ('local' par défaut).
-   */
-  fusionner(base, local, distant, chemin, pref) {
-    chemin = chemin || [];
-    pref = pref || 'local';
-    if (this.egal(local, distant)) return distant;
-    if (this.egal(base, local)) return distant;
-    if (this.egal(base, distant)) return local;
-    /* les deux côtés ont changé cette valeur */
-    const n = chemin.length;
-    const critere = n === 2 ? this.ATOMES[chemin[0]]
-      : (n === 4 && chemin[0] === 'reps' && chemin[2] === 'srs') ? this.srs : null;
-    if (critere && this.objet(local) && this.objet(distant))
-      return this.comparer(critere(local), critere(distant)) >= 0 ? local : distant;
-    if (n === 1 && /^version/.test(chemin[0]) && typeof local === 'number' && typeof distant === 'number')
-      return Math.max(local, distant);
-    /* un répertoire modifié des deux côtés : ses coups viennent du plus récemment édité */
-    if (n === 2 && chemin[0] === 'reps' && this.objet(local) && this.objet(distant))
-      pref = (distant.maj || 0) > (local.maj || 0) ? 'distant' : 'local';
-    if (this.objet(local) && this.objet(distant)) {
-      const b = this.objet(base) ? base : {};
-      const res = {};
-      const cles = Object.keys(local).concat(Object.keys(distant).filter(k => !(k in local)));
-      for (const k of cles) {
-        const enL = k in local, enD = k in distant, enB = k in b;
-        if (enL && enD) res[k] = this.fusionner(b[k], local[k], distant[k], chemin.concat(k), pref);
-        else if (enL) {
-          if (enB && this.egal(b[k], local[k])) continue;   // supprimé là-bas, inchangé ici
-          res[k] = local[k];                                // ajouté ou modifié ici
-        } else {
-          if (enB && this.egal(b[k], distant[k])) continue; // supprimé ici, inchangé là-bas
-          res[k] = distant[k];
-        }
-      }
-      return res;
-    }
-    if (Array.isArray(local) && Array.isArray(distant)
-      && local.concat(distant).every(x => x === null || typeof x !== 'object')) {
-      /* liste de valeurs simples : ajouts des deux côtés, retraits des deux côtés */
-      const B = new Set(Array.isArray(base) ? base : []), L = new Set(local), D = new Set(distant);
-      return local.filter(x => D.has(x) || !B.has(x)).concat(distant.filter(x => !L.has(x) && !B.has(x)));
-    }
-    return pref === 'distant' ? distant : local;
-  },
-};
+/* La fusion à trois voies (Fusion) vit dans fusion.js. */

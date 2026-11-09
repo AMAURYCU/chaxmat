@@ -68,6 +68,10 @@ public class MainActivity extends Activity {
     private static final int REQ_FICHIER = 1;
     private static final int REQ_EXPORT = 2;
     private static final long TAILLE_MAX_APK = 200L * 1024 * 1024;
+    /* Les seules releases installables : celles de ce dépôt (en minuscules).
+       Si tu publies ta propre version de l'appli, change-le avec `depot` dans
+       app/version.js. */
+    static final String DEPOT = "amaurycu/chaxmat";
     private volatile boolean majEnCours = false;
 
     private WebView web;
@@ -272,8 +276,10 @@ public class MainActivity extends Activity {
         Uri u = Uri.parse(adresse);
         if (!"https".equals(u.getScheme()) || !"github.com".equals(u.getHost())) return false;
         java.util.List<String> p = u.getPathSegments();
-        return p.size() >= 5 && "releases".equals(p.get(2)) && "download".equals(p.get(3))
-            && p.get(p.size() - 1).toLowerCase().endsWith(".apk");
+        if (p.size() < 5 || !"releases".equals(p.get(2)) || !"download".equals(p.get(3))) return false;
+        String depot = (p.get(0) + "/" + p.get(1)).toLowerCase(java.util.Locale.ROOT);
+        for (String s : p) if (s.equals("..") || s.equals(".")) return false;
+        return DEPOT.equals(depot) && p.get(p.size() - 1).toLowerCase(java.util.Locale.ROOT).endsWith(".apk");
     }
 
     /** GitHub renvoie vers son stockage : on suit les redirections, en https seulement. */

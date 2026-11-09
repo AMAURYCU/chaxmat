@@ -62,12 +62,12 @@ const Lichess = {
     try {
       if (t) localStorage.setItem(this.CLE, t); else localStorage.removeItem(this.CLE);
       if (nom) localStorage.setItem(this.CLE_NOM, nom); else localStorage.removeItem(this.CLE_NOM);
-    } catch (e) { }
+    } catch (e) { /* stockage du navigateur interdit : le jeton reste dans les données */ }
     const r = this._reglages();
     if (r) {
       if (t) r.lichessJeton = t; else delete r.lichessJeton;
       if (nom) r.lichessPseudo = nom; else delete r.lichessPseudo;
-      if (typeof sauver === 'function') { try { sauver(); } catch (e) { } }
+      if (typeof sauver === 'function') { try { sauver(); } catch (e) { ignorer(e, 'Lichess : enregistrement'); } }
     }
   },
 
@@ -78,10 +78,10 @@ const Lichess = {
     if (!r) return;
     if (!r.lichessJeton) {
       let t = null, n = null;
-      try { t = localStorage.getItem(this.CLE); n = localStorage.getItem(this.CLE_NOM); } catch (e) { }
+      try { t = localStorage.getItem(this.CLE); n = localStorage.getItem(this.CLE_NOM); } catch (e) { /* stockage du navigateur interdit : rien à reprendre */ }
       if (t) { r.lichessJeton = t; if (n) r.lichessPseudo = n; }
     } else {
-      try { localStorage.setItem(this.CLE, r.lichessJeton); } catch (e) { }
+      try { localStorage.setItem(this.CLE, r.lichessJeton); } catch (e) { /* stockage du navigateur interdit : le jeton reste dans les données */ }
     }
   },
 
@@ -131,7 +131,7 @@ const Lichess = {
       attendu = sessionStorage.getItem('lichess_etat');
       sessionStorage.removeItem('lichess_verif');
       sessionStorage.removeItem('lichess_etat');
-    } catch (e) { }
+    } catch (e) { /* stockage de session interdit : pas de connexion en cours à vérifier */ }
     propre();
     if (!verif) return { ok: false, message: tx('Demande de connexion introuvable : recommence depuis l’éditeur.') };
     if (attendu && etat !== attendu) return { ok: false, message: tx('Réponse inattendue (état non concordant). Connexion annulée.') };
@@ -167,7 +167,7 @@ const Lichess = {
       if (!r.ok) return this.pseudo();
       const j = await r.json();
       if (j && j.username) { this._poser(t, j.username); return j.username; }
-    } catch (e) { }
+    } catch (e) { /* réseau : on garde le pseudo déjà connu */ }
     return this.pseudo();
   },
 
@@ -176,7 +176,7 @@ const Lichess = {
     const t = this.token();
     this._poser(null, null);
     if (!t) return;
-    try { await fetch(this.JETON, { method: 'DELETE', headers: { Authorization: 'Bearer ' + t } }); } catch (e) { }
+    try { await fetch(this.JETON, { method: 'DELETE', headers: { Authorization: 'Bearer ' + t } }); } catch (e) { /* révocation au mieux : hors ligne, le jeton expirera seul */ }
   },
 
   /* Le jeton a été refusé : on l'oublie, il ne sert plus à rien. */

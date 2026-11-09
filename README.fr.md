@@ -94,15 +94,17 @@ Au lancement, si tu es connecté, l'application regarde sur GitHub si une nouvel
 version est publiée (la dernière *release* du dépôt). Si oui, un bandeau te le dit, avec
 ses nouveautés :
 
-- **installée avec git** : « Mettre à jour » fait `git pull` dans le dossier, puis la
-  page se recharge. Si `serveur.py` a changé, relance l'entraîneur ;
+- **installée avec git** : « Mettre à jour » avance ton clone jusqu'à la version
+  annoncée, et seulement elle (`git fetch --tags`, puis `git merge --ff-only` de son
+  tag) : ce qui a été poussé sur la branche depuis n'arrive pas chez toi. Puis la page se
+  recharge. Si `serveur.py` a changé, relance l'entraîneur ;
 - **téléchargée en ZIP** : « Télécharger » ouvre la release ; remplace le dossier de
   l'application et garde `entraineur/donnees` ;
 - **sur Android** : « Mettre à jour » télécharge l'APK de la release, et Android
   demande de confirmer l'installation. Tes données restent.
 
-Tes données ne bougent jamais : `git pull` refuse d'écraser un fichier que tu as
-modifié, et le dossier `donnees` est ignoré par git.
+Tes données ne bougent jamais : git refuse d'écraser un fichier que tu as modifié (avance
+rapide seulement), et le dossier `donnees` est ignoré par git.
 
 ## Langue
 
@@ -137,6 +139,10 @@ reste utilisable.
 
 Voir [android/LISEZ-MOI.md](android/LISEZ-MOI.md) : construction de l'APK, installation
 et fonctionnement.
+
+L'appli ne fait pas partie de la sauvegarde Google du téléphone : ses données contiennent
+tes jetons GitHub et Lichess en clair. Pour retrouver tes données sur un nouveau
+téléphone, active la synchronisation (ci-dessous).
 
 ## Synchroniser l'ordinateur et le téléphone
 
@@ -190,7 +196,10 @@ Ce qui sort de ta machine :
   est publiée (au plus une par heure ; elle n'envoie rien de toi) ;
 - le chargement des **polices Google Fonts**.
 
-Le serveur local refuse toute requête qui ne vient pas de la page elle-même.
+Le serveur local refuse toute requête qui ne vient pas de la page elle-même. La page
+n'exécute que ses propres scripts (une politique de sécurité, ou CSP, l'impose) : un
+commentaire de PGN importé, un nom de répertoire ou un pseudo s'affichent comme du texte
+et ne peuvent pas devenir du code qui lirait tes jetons.
 
 ## Contenu du dépôt
 
@@ -199,6 +208,9 @@ entraineur/
   app/            l'application web (HTML, CSS, JavaScript, Stockfish en WebAssembly)
     i18n/         les traductions de l'interface (i18n.js, en.js)
     lecons.js     les leçons en français ; lecons.en.js en anglais
+    tactique.js   pièces en prise et échanges ; moteur.js : Stockfish ; fusion.js :
+                  la fusion de la synchronisation (testables sous Node)
+  types/          la forme des données (donnees.json), pour la vérification des types
   serveur.py      le serveur local (Python standard)
   GUIDE.md        le guide d'utilisation
   Ouvrir l'entraineur.command, ouvrir-entraineur.sh, ouvrir-entraineur.bat
@@ -208,7 +220,32 @@ skills/analyse-partie-echecs/
   scripts/        analyse Stockfish et gabarits de rapports HTML
 docs/             le site (GitHub Pages) et les captures d'écran
 requirements.txt  les dépendances (paquets pip, puis tout le reste)
+tests/            les tests (Node et Playwright)
+outils/           traductions.py : vérifier et compléter la traduction anglaise
+package.json      les outils de développement (tests, lint, types) ; l'application
+                  elle-même n'a besoin d'aucun paquet
 ```
+
+## Développer
+
+L'application n'a ni build ni dépendance. Pour les tests, il faut Node 22 et Python 3 :
+
+```
+npm ci
+npx playwright install chromium
+npm test              # serveur, tactique, fusion, mise à jour, traductions, appli dans Chromium
+npm run lint          # ESLint (aucun catch vide sans explication)
+npm run types         # vérification des types des modules purs
+npm run traductions   # les phrases sans traduction anglaise
+```
+
+GitHub Actions lance le lint, les types et les tests à chaque envoi
+(`.github/workflows/tests.yml`). Les tests ne touchent jamais `entraineur/donnees` :
+chaque serveur de test tourne sur un dossier temporaire (`CHAXMAT_DONNEES`).
+
+Une phrase de l'interface qui change, même d'une virgule, perd sa traduction : après
+l'avoir modifiée, `python3 outils/traductions.py manquantes > a.tsv`, traduire la
+deuxième colonne, puis `python3 outils/traductions.py ajouter a.tsv`.
 
 ## Licence
 

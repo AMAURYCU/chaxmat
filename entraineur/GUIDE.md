@@ -56,6 +56,19 @@ qu'elle est analysée : « Arrêter » garde ce qui est fait, et le prochain imp
 l'analyse des parties restantes. Tu obtiens les indicateurs du jour, la liste des
 parties et celle des gaffes.
 
+Une seule longue tâche tourne à la fois : import, analyse des parties restées sans
+Stockfish ou affinage des gaffes (onglet Progression). Si tu en lances une deuxième, elle
+te demande d'attendre la fin de la première ou de l'arrêter ; chacune a son bouton
+« Arrêter ». Si chess.com ne répond pas, chaque archive mensuelle est réessayée trois fois
+avant d'être sautée, avec un message dans le journal.
+
+Une pièce à toi est **menacée** dès qu'une prise la gagne, y compris quand tu es en
+échec : la fourchette avec échec (le roi et la dame attaqués d'un même coup) compte.
+Jusqu'à la version 2026.11.09.1, ces menaces sous échec n'étaient pas comptées ; au premier
+lancement de la nouvelle version, l'application recompte une fois toutes tes parties
+(une barre de progression s'affiche en haut). Tes chiffres de menaces sauvées peuvent
+baisser : ils sont plus justes.
+
 Ton point de départ, celui des indicateurs, est la moyenne de tes parties des 30 jours
 qui suivent la première partie importée. Il suit les parties importées : si tu importes
 ensuite des parties plus anciennes, il recule jusqu'à la première. Seule une pause de
@@ -107,7 +120,9 @@ l'ajouter, ou clique sur un coup proposé. Trois sources de propositions :
 - **ceux de Stockfish**, calculés dans le navigateur.
 
 « Importer un PGN » accepte la notation anglaise (Nf3, O-O) comme la française (Cf3,
-0-0).
+0-0). Les commentaires du PGN (`{ … }`) deviennent les notes des positions. Elles
+s'affichent comme du texte, retours à la ligne compris : un commentaire qui contiendrait
+du HTML ou du code s'affiche tel quel, sans jamais s'exécuter.
 
 ## Entraînement
 
@@ -415,9 +430,10 @@ publiée, au plus une fois par heure. Si elle est plus récente que la tienne, u
 s'affiche en haut de la page, avec ses nouveautés :
 
 - **« Mettre à jour »**, sur l'ordinateur, si l'application vient d'un clone git : le
-  serveur local fait `git pull`, puis la page se recharge. S'il refuse (un fichier que
-  tu as modifié serait écrasé), il le dit, et rien ne change. Si le serveur lui-même a
-  changé, ferme sa fenêtre et relance l'entraîneur ;
+  serveur local avance ton clone jusqu'à la version annoncée, et seulement elle
+  (`git fetch --tags`, puis `git merge --ff-only` de son tag), puis la page se recharge.
+  S'il refuse (un fichier que tu as modifié serait écrasé), il le dit, et rien ne
+  change. Si le serveur lui-même a changé, ferme sa fenêtre et relance l'entraîneur ;
 - **« Télécharger »**, si tu l'as téléchargée en ZIP : remplace le dossier de
   l'application, et garde `entraineur/donnees` ;
 - **« Mettre à jour »**, sur Android : l'appli télécharge l'APK, puis Android demande de
@@ -454,3 +470,10 @@ s'affiche en haut de la page, avec ses nouveautés :
     clique sur « Recharger ».
 
   Dans les deux cas, rien n'est écrasé.
+- **En mode simplifié, un bandeau dit que le navigateur refuse d'enregistrer** : le
+  stockage du navigateur (environ 5 Mo) est plein. Lance l'entraîneur avec son serveur
+  (le lanceur de ton système) : tes données iront dans `entraineur/donnees`, sans
+  limite. Tant que le bandeau est là, ce que tu fais n'est pas enregistré.
+- **« Stockfish ne démarre pas » ou « ne répond plus »** : le moteur s'est arrêté (souvent
+  faute de mémoire sur un téléphone). Relance l'import ou l'analyse : un nouveau moteur
+  démarre, et ce qui était déjà analysé est gardé.

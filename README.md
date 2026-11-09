@@ -89,15 +89,17 @@ never ends up in the repository.
 On launch, if you are online, the app asks GitHub whether a new version has been
 published (the repository's latest *release*). If so, a banner says so, with what's new:
 
-- **installed with git**: "Update" runs `git pull` in the folder, then the page
-  reloads. If `serveur.py` changed, start the coach again;
+- **installed with git**: "Update" moves your clone to the announced version, and only
+  that one (`git fetch --tags`, then `git merge --ff-only` of its tag): what was pushed
+  to the branch since does not reach you. Then the page reloads. If `serveur.py`
+  changed, start the coach again;
 - **downloaded as a ZIP**: "Download" opens the release; replace the app folder and keep
   `entraineur/donnees`;
 - **on Android**: "Update" downloads the release's APK, and Android asks you to confirm
   the installation. Your data stays.
 
-Your data never moves: `git pull` refuses to overwrite a file you changed, and the
-`donnees` folder is ignored by git.
+Your data never moves: git refuses to overwrite a file you changed (fast-forward only),
+and the `donnees` folder is ignored by git.
 
 ## Language
 
@@ -142,6 +144,9 @@ The first run creates the signing key `cle/entraineur.p12` and asks for its pass
 reads it from the `MDP_CLE` variable). **Keep that key and never publish it**: Android
 only accepts an update signed with the same key. The APK contains no data. Details, in
 French: [android/LISEZ-MOI.md](android/LISEZ-MOI.md).
+
+The app is left out of the phone's Google backup: its data holds your GitHub and Lichess
+tokens in plain text. To get your data back on a new phone, turn on sync (below).
 
 ## Syncing computer and phone
 
@@ -197,7 +202,10 @@ What leaves your computer:
   most once an hour; it sends nothing about you);
 - loading the **Google Fonts**.
 
-The local server refuses any request that does not come from the page itself.
+The local server refuses any request that does not come from the page itself. The page
+runs only its own scripts (a security policy, or CSP, enforces it): an imported PGN
+comment, a repertoire name or a username is shown as text and cannot turn into code that
+would read your tokens.
 
 ## Repository contents
 
@@ -206,6 +214,9 @@ entraineur/
   app/            the web app (HTML, CSS, JavaScript, Stockfish in WebAssembly)
     i18n/         interface translations (i18n.js, en.js)
     lecons.js     lessons in French; lecons.en.js in English
+    tactique.js   hanging pieces and exchanges; moteur.js: Stockfish; fusion.js: the
+                  sync merge (testable under Node)
+  types/          the shape of the data (donnees.json), for type checking
   serveur.py      the local server (standard Python)
   GUIDE.md        the user guide (French)
   Ouvrir l'entraineur.command, ouvrir-entraineur.sh, ouvrir-entraineur.bat
@@ -215,7 +226,32 @@ skills/analyse-partie-echecs/
   scripts/        Stockfish analysis and HTML report templates
 docs/             the website (GitHub Pages) and screenshots
 requirements.txt  dependencies (pip packages, then everything else)
+tests/            the tests (Node and Playwright)
+outils/           traductions.py: check and complete the English translation
+package.json      development tools (tests, lint, types); the app itself needs no
+                  package
 ```
+
+## Development
+
+The app has no build step and no dependency. The tests need Node 22 and Python 3:
+
+```
+npm ci
+npx playwright install chromium
+npm test              # server, tactics, merge, update, translations, the app in Chromium
+npm run lint          # ESLint (no empty catch without an explanation)
+npm run types         # type checking of the pure modules
+npm run traductions   # interface sentences without an English translation
+```
+
+GitHub Actions runs lint, types and tests on every push (`.github/workflows/tests.yml`).
+The tests never touch `entraineur/donnees`: each test server runs on a temporary folder
+(`CHAXMAT_DONNEES`).
+
+An interface sentence that changes, even by a comma, loses its translation: after
+editing it, run `python3 outils/traductions.py manquantes > a.tsv`, translate the second
+column, then `python3 outils/traductions.py ajouter a.tsv`.
 
 ## Licence
 

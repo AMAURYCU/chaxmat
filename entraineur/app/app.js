@@ -16,6 +16,7 @@ const el = (tag, attrs, ...kids) => {
   for (const c of kids.flat()) if (c !== null && c !== undefined) n.append(c.nodeType ? c : String(c));
   return n;
 };
+/* echapper() et ignorer() : voir commun.js */
 const NS = 'http://www.w3.org/2000/svg';
 const svgEl = (tag, attrs) => {
   const n = document.createElementNS(NS, tag);
@@ -24,8 +25,17 @@ const svgEl = (tag, attrs) => {
 };
 
 const DEGRADE = location.protocol === 'file:';
-const VAL = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
-const SEUIL_PIECE = 250;   // cp : ce qu'on appelle « une pièce »
+/* Les réglages qu'on serait tenté de changer, au même endroit. */
+const REGLAGES = Object.freeze({
+  NOEUDS_IMPORT: 120000,          // analyse Stockfish de chaque partie importée (défaut de #profondeur)
+  NOEUDS_AFFINAGE: 800000,        // relecture des seules positions de gaffe (mats longs)
+  DELAI_SAUVEGARDE_MS: 350,       // on regroupe les écritures rapprochées
+  NOUVEL_ESSAI_MS: 10000,         // serveur injoignable : nouvel essai
+  PAUSE_NOUVEAU_DEPART_J: 60,     // au-delà, la référence de départ repart de la reprise
+  FENETRE_REFERENCE_J: 30,        // la référence de départ : tes 30 premiers jours
+});
+/* valeurs des pièces, seuil d'« une pièce » en prise, échanges : tactique.js */
+const { VAL, SEUIL_PIECE, seeGain, enPrise } = Tactique;
 
 
 /* Notation des coups dans la langue de l'interface. En français : N→C,
@@ -96,7 +106,13 @@ const S = {
 
 async function charger() {
   if (DEGRADE) {
-    try { Object.assign(S.d, JSON.parse(localStorage.getItem('entraineur') || '{}')); } catch (e) { }
+    let brut = null;
+    try { brut = localStorage.getItem('entraineur'); } catch (e) { brut = null; }   // stockage interdit : on part de zéro
+    try { Object.assign(S.d, JSON.parse(brut || '{}')); } catch (e) {
+      /* illisible : on le met de côté au lieu de l'écraser à la première sauvegarde */
+      console.warn('données du navigateur illisibles, gardées sous « entraineur.illisible »', e);
+      try { localStorage.setItem('entraineur.illisible', brut); } catch (e2) { /* plein : tant pis, l'original reste lu en premier */ }
+    }
   } else {
     try {
       const r = await fetch('/api/donnees', { cache: 'no-store' });
@@ -104,7 +120,7 @@ async function charger() {
       const donnees = await r.json();
       SAUVE.rev = r.headers.get('X-Revision');
       Object.assign(S.d, donnees);
-      SAUVE.dernier = JSON.stringify(S.d);
+      SAUVE.dernier = empreinteTexte(JSON.stringify(S.d));
     } catch (e) {
       /* Sans lecture, S.d est vide : la moindre sauvegarde écraserait tes
          données. On bloque l'écriture et on le dit. */
@@ -150,16 +166,33 @@ async function charger() {
    10 s, avec un bandeau tant que ce n'est pas passé. */
 const SAUVE = { rev: null, bloque: null, sale: false, enCours: false, relance: false, essai: null, dernier: null };
 let tSave = null;
+/* Empreinte d'un texte (deux FNV-1a de 32 bits et la longueur) : « rien n'a
+   changé depuis la dernière écriture » sans garder en mémoire une seconde
+   copie de 2 Mo du document. Une collision ferait sauter une écriture : avec
+   64 bits et la longueur, c'est une chance sur des milliards de milliards. */
+function empreinteTexte(t) {
+  let a = 0x811c9dc5, b = 0x01000193 ^ 0x9e3779b9;
+  for (let i = 0; i < t.length; i++) {
+    const c = t.charCodeAt(i);
+    a = Math.imul(a ^ c, 0x01000193);
+    b = Math.imul(b ^ c, 0x01000193) ^ (b >>> 13);
+  }
+  return t.length + ':' + (a >>> 0).toString(36) + ':' + (b >>> 0).toString(36);
+}
+/* La sérialisation de tout le document (2 Mo et plus) se fait quand la page
+   est au repos, pas au milieu d'un coup ou d'une animation. */
+const auRepos = (f) => (typeof requestIdleCallback === 'function'
+  ? requestIdleCallback(() => f(), { timeout: 2000 }) : setTimeout(f, 0));
 function sauver() {
   SAUVE.sale = true;
   clearTimeout(tSave);
-  tSave = setTimeout(ecrireDonnees, 350);
+  tSave = setTimeout(() => auRepos(ecrireDonnees), REGLAGES.DELAI_SAUVEGARDE_MS);
 }
 async function ecrireDonnees() {
   clearTimeout(tSave); tSave = null;
   clearTimeout(SAUVE.essai); SAUVE.essai = null;
   if (DEGRADE) {
-    try { localStorage.setItem('entraineur', JSON.stringify(S.d)); SAUVE.sale = false; } catch (e) { }
+    ecrireLocal();
     if (typeof Sync !== 'undefined') Sync.planifier();
     return;
   }
@@ -169,7 +202,8 @@ async function ecrireDonnees() {
      Ouvrir l'entraîneur ne réécrit donc plus le fichier, et une deuxième
      fenêtre ouverte « pour voir » ne bloque pas la première. */
   const corps = JSON.stringify(S.d);
-  if (corps === SAUVE.dernier) { SAUVE.sale = false; bandeauSauvegarde(null); return; }
+  const empreinte = empreinteTexte(corps);
+  if (empreinte === SAUVE.dernier) { SAUVE.sale = false; bandeauSauvegarde(null); return; }
   SAUVE.enCours = true; SAUVE.sale = false;
   try {
     const url = '/api/donnees' + (SAUVE.rev ? '?base=' + encodeURIComponent(SAUVE.rev) : '');
@@ -185,7 +219,7 @@ async function ecrireDonnees() {
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const j = await r.json().catch(() => ({}));
     if (j.rev) SAUVE.rev = j.rev;
-    SAUVE.dernier = corps;
+    SAUVE.dernier = empreinte;
     bandeauSauvegarde(null);
     /* enregistré ici : la synchro GitHub (sync.js) suivra dans quelques secondes */
     if (typeof Sync !== 'undefined') Sync.planifier();
@@ -193,10 +227,26 @@ async function ecrireDonnees() {
     console.warn('écriture données', e);
     SAUVE.sale = true;
     bandeauSauvegarde(tx('Sauvegarde impossible : le serveur ne répond pas. Laisse cette page ouverte et relance le serveur (le lanceur de ton système, voir le README) ; nouvel essai toutes les 10 secondes.'), false);
-    SAUVE.essai = setTimeout(ecrireDonnees, 10000);
+    SAUVE.essai = setTimeout(ecrireDonnees, REGLAGES.NOUVEL_ESSAI_MS);
   } finally {
     SAUVE.enCours = false;
     if (SAUVE.relance) { SAUVE.relance = false; ecrireDonnees(); }
+  }
+}
+/* Mode fichier : tout tient dans le stockage du navigateur, limité à environ
+   5 Mo. Quand il est plein, on le dit et on garde l'état « à enregistrer » :
+   avant, l'erreur était avalée et tout ce qui suivait se perdait à la
+   fermeture, sans un mot. */
+function ecrireLocal() {
+  try {
+    localStorage.setItem('entraineur', JSON.stringify(S.d));
+    SAUVE.sale = false;
+    bandeauSauvegarde(null);
+    return true;
+  } catch (e) {
+    SAUVE.sale = true;
+    bandeauSauvegarde(tx('Le navigateur refuse d’enregistrer davantage en mode fichier ({0}). Lance l’entraîneur avec son serveur (voir le README) : sinon, ce que tu fais maintenant sera perdu à la fermeture de la page.', [e && e.name || 'erreur']), false);
+    return false;
   }
 }
 function bandeauSauvegarde(texte, recharger) {
@@ -210,118 +260,46 @@ function bandeauSauvegarde(texte, recharger) {
 }
 
 /* ========================================================== moteur Stockfish */
-class Moteur {
-  constructor() {
-    this.w = new Worker('vendor/stockfish.js');
-    this.attente = null;
-    this.w.onmessage = (e) => this.recevoir(typeof e.data === 'string' ? e.data : (e.data && e.data.data) || '');
-    this.pretP = new Promise((res) => { this.resPret = res; });
-    this.envoyer('uci');
-  }
-  envoyer(c) { this.w.postMessage(c); }
-  recevoir(l) {
-    if (l === 'uciok') { this.envoyer('setoption name Threads value 1'); this.envoyer('isready'); return; }
-    if (l === 'readyok') { this.resPret && this.resPret(true); this.resPret = null; return; }
-    if (!this.attente) return;
-    if (l.startsWith('info ') && l.includes(' pv ')) {
-      const mCp = l.match(/score cp (-?\d+)/), mMate = l.match(/score mate (-?\d+)/);
-      const mPv = l.match(/ pv (.+?)\s*$/), mD = l.match(/depth (\d+)/);
-      if (this.attente.lignes) {                 // multi() : une ligne par rang MultiPV
-        const mi = l.match(/ multipv (\d+)/), i = mi ? parseInt(mi[1], 10) : 1;
-        if (!mPv || (!mCp && !mMate)) return;
-        const n = mMate ? parseInt(mMate[1], 10) : 0;
-        const pv = mPv[1].trim().split(/\s+/);
-        this.attente.lignes.set(i, { uci: pv[0], pv, cp: mMate ? (n > 0 ? 10000 - n : -10000 - n) : parseInt(mCp[1], 10),
-          depth: mD ? parseInt(mD[1], 10) : 0 });
-        return;
-      }
-      if (mCp) this.attente.cp = parseInt(mCp[1], 10);
-      if (mMate) { const n = parseInt(mMate[1], 10); this.attente.cp = n > 0 ? 10000 - n : -10000 - n; this.attente.mat = n; }
-      if (mPv) { const l2 = mPv[1].trim().split(/\s+/); this.attente.best = l2[0]; this.attente.pv = l2; }
-      if (mD) this.attente.depth = parseInt(mD[1], 10);
-    } else if (l.startsWith('bestmove')) {
-      const p = l.split(' ');
-      if (p[1] && p[1] !== '(none)') this.attente.best = p[1];
-      const a = this.attente; this.attente = null; a.res(a);
-    }
-  }
-  pret() { return this.pretP; }
-  evaluer(fen, noeuds) {
-    /* un seul calcul à la fois : le worker n'a qu'une place d'attente */
-    const lancer = () => new Promise((res) => {
-      this.attente = { cp: 0, best: null, pv: null, mat: null, depth: 0, res };
-      this.envoyer('position fen ' + fen);
-      this.envoyer('go nodes ' + noeuds);
-    });
-    this.file = (this.file || Promise.resolve()).then(lancer, lancer);
-    return this.file;
-  }
-  /* Les n meilleurs coups de la position (MultiPV), scores du point de vue du
-     trait, triés du meilleur au moins bon. Remet MultiPV à 1 ensuite : evaluer()
-     n'en lit qu'un. */
-  multi(fen, noeuds, n) {
-    const lancer = () => new Promise((res) => {
-      const lignes = new Map();
-      this.attente = { lignes, res: () => {
-        this.envoyer('setoption name MultiPV value 1');
-        res([...lignes.entries()].sort((a, b) => a[0] - b[0]).map(([, x]) => x));
-      } };
-      this.envoyer('setoption name MultiPV value ' + n);
-      this.envoyer('position fen ' + fen);
-      this.envoyer('go nodes ' + noeuds);
-    });
-    this.file = (this.file || Promise.resolve()).then(lancer, lancer);
-    return this.file;
-  }
-  arreter() { try { this.envoyer('stop'); } catch (e) { } }
+/* La classe Moteur vit dans moteur.js. Ici : le moteur partagé par l'import,
+   le bilan, la progression et les ouvertures, et la règle « une longue tâche
+   à la fois ». */
+let promesseMoteur = null;
+/** Le moteur partagé, prêt à calculer ; recréé s'il est mort entre-temps. */
+function obtenirMoteur() {
+  if (S.moteur && S.moteur.vivant() && promesseMoteur) return promesseMoteur;
+  const m = new Moteur();
+  S.moteur = m;
+  m.surMort = () => { if (S.moteur === m) { S.moteur = null; promesseMoteur = null; } };
+  promesseMoteur = m.pret().then(() => m);
+  promesseMoteur.catch(() => { /* l'appelant reçoit l'erreur ; le prochain appel recrée un moteur */ });
+  return promesseMoteur;
 }
 
+/* Une seule longue tâche à la fois (import, ré-analyse, affinage) : chacune a
+   son propre drapeau d'arrêt. Avant, un seul S.stop servait à toutes, et
+   lancer une ré-analyse pendant un import annulait un « Arrêter » déjà
+   demandé, puis analysait deux fois les mêmes parties. */
+const Taches = {
+  courante: null,
+  /** Lance `travail(tache)` si rien d'autre ne tourne ; sinon renvoie { refus: nom de la tâche en cours }. */
+  async lancer(nom, travail) {
+    if (this.courante) return { refus: this.courante.nom };
+    const t = this.courante = { nom, arret: false };
+    S.stop = false;
+    try { return await travail(t); } finally { if (this.courante === t) this.courante = null; }
+  },
+  arreter() {
+    if (!this.courante) return;
+    this.courante.arret = true;
+    S.stop = true;                    // pour le code qui lit encore S.stop (bot personnalisé)
+    if (S.moteur) S.moteur.arreter();
+  },
+  /** Le texte à afficher quand une tâche est refusée. */
+  refus(r) { return tx('Attends la fin de la tâche en cours ({0}), ou arrête-la.', [r.refus]); },
+};
+
 /* ========================================================== règles / tactique */
-/* Les prises légales vers `sq` ne sont générées que pour les pièces qui
-   l'attaquent, avec les fonctions internes de chess.js (_moves, _makeMove :
-   la copie de vendor/ est figée). moves({ verbose: true }) construisait pour
-   chaque coup possible sa notation et deux FEN : une seconde par partie à
-   l'import, plusieurs sur un téléphone. Même choix de prise (la moins chère,
-   la première dans l'ordre du plateau à valeur égale), mêmes résultats sur
-   les 476 parties de test. */
-function case0x88(sq) { return (8 - +sq[1]) * 16 + (sq.charCodeAt(0) - 97); }
-function seeGain(fen, sq, cote) {
-  let b;
-  try { b = new Chess(fen); } catch (e) { return 0; }
-  const cible = b.get(sq);
-  if (!cible) return 0;
-  try { b.setTurn(cote); } catch (e) { return 0; }
-  const ici = case0x88(sq);
-  const gains = []; let val = VAL[cible.type];
-  for (let k = 0; k < 14; k++) {
-    let m = null;
-    try {
-      for (const de of b.attackers(sq, b.turn())) {
-        for (const c of b._moves({ legal: true, square: de })) {
-          if (c.to === ici && c.captured && (!m || VAL[c.piece] < VAL[m.piece])) m = c;
-        }
-      }
-    } catch (e) { break; }
-    if (!m) break;
-    gains.push(val); val = VAL[m.piece];
-    try { b._makeMove(m); } catch (e) { break; }
-  }
-  let net = 0;
-  for (let i = gains.length - 1; i >= 0; i--) net = Math.max(0, gains[i] - net);
-  return net;
-}
-function enPrise(fen, couleur) {
-  let b; try { b = new Chess(fen); } catch (e) { return []; }
-  const adv = couleur === 'w' ? 'b' : 'w', out = [];
-  for (const rang of b.board()) for (const c of rang) {
-    if (!c || c.color !== couleur || c.type === 'k') continue;
-    let att = []; try { att = b.attackers(c.square, adv); } catch (e) { }
-    if (!att.length) continue;
-    const g = seeGain(fen, c.square, adv);
-    if (g > 0) out.push({ case: c.square, type: c.type, gain: g });
-  }
-  return out;
-}
+/* seeGain, enPrise : voir tactique.js */
 
 /* ========================================================== import */
 function parseClk(txt) {
@@ -438,7 +416,7 @@ async function importerLichess(pseudo, depuis, log) {
   if (r.status === 429) throw new Error(tx('Trop de requêtes d’un coup : Lichess limite le débit. Attends une minute puis réessaie.'));
   if (!r.ok) throw new Error(tx('Lichess a répondu {0} : réessaie plus tard.', [r.status]));
   const brut = [];
-  const lire = (l) => { if (l.trim()) { try { brut.push(JSON.parse(l)); } catch (e) { } } };
+  const lire = (l) => { if (l.trim()) { try { brut.push(JSON.parse(l)); } catch (e) { /* ligne NDJSON coupée : on la saute */ } } };
   if (r.body && r.body.getReader) {
     const lecteur = r.body.getReader(), dec = new TextDecoder();
     let reste = '', dernier = 0;
@@ -467,14 +445,42 @@ async function importerLichess(pseudo, depuis, log) {
   return gardees;
 }
 
+/* Une archive mensuelle de chess.com : 20 s au plus par essai (sinon une
+   requête muette figeait l'import, et « Arrêter » n'y pouvait rien), trois
+   essais si chess.com demande de ralentir (429) ou si le réseau coupe.
+   Renvoie la réponse, ou null. */
+async function lireArchive(url) {
+  for (let essai = 0; essai < 3; essai++) {
+    let r = null;
+    try {
+      const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const minuteur = ctl ? setTimeout(() => ctl.abort(), 20000) : null;
+      try { r = await fetch(url, ctl ? { signal: ctl.signal } : {}); } finally { clearTimeout(minuteur); }
+    } catch (e) {
+      r = null;                                   // réseau coupé ou délai dépassé : on réessaie
+    }
+    if (r && r.status !== 429) return r;
+    if (S.stop) return r;
+    await new Promise((ok) => setTimeout(ok, 1500 * (essai + 1)));
+  }
+  return null;
+}
+/* Comptes de robots et de coachs : on ne garde que les parties contre des
+   humains. « bot » doit être un mot à part (Jimmy-bot, SuperBot), pas la fin
+   d'un nom (Talbot, Abbot). */
+function estUnRobot(nom) {
+  return /^coach-/i.test(nom) || /(^|[-_.\d])bot$/i.test(nom) || /[a-z]Bot$/.test(nom) || /^bot[-_.]/i.test(nom);
+}
 async function importerParties(pseudo, depuis, log) {
   const mois = moisEntre(depuis, aujourdhui());
   let brut = [];
   for (const m of mois) {
+    if (S.stop) break;
     log(tx('chess.com : archive {0}…', [m]));
-    const r = await fetch(`https://api.chess.com/pub/player/${pseudo.toLowerCase()}/games/${m}`);
-    if (!r.ok) { log(tx('  archive {0} indisponible ({1})', [m, r.status])); continue; }
-    brut = brut.concat((await r.json()).games || []);
+    const r = await lireArchive(`https://api.chess.com/pub/player/${encodeURIComponent(pseudo.toLowerCase())}/games/${m}`);
+    if (!r || !r.ok) { log(tx('  archive {0} indisponible ({1})', [m, r ? r.status : tx('pas de réponse')])); continue; }
+    try { brut = brut.concat((await r.json()).games || []); }
+    catch (e) { log(tx('  archive {0} illisible', [m])); }
   }
   const t0 = new Date(depuis + 'T00:00:00').getTime() / 1000;
   const gardees = brut.filter(g => {
@@ -482,7 +488,7 @@ async function importerParties(pseudo, depuis, log) {
     if (g.rules !== 'chess') return false;
     if (g.time_class === 'daily') return false;
     const adv = g.white.username.toLowerCase() === pseudo.toLowerCase() ? g.black.username : g.white.username;
-    return !/^coach-/i.test(adv) && !/bot$/i.test(adv);
+    return !estUnRobot(adv);
   });
   log(tx('{0} partie(s) contre des humains depuis le {1}.', [gardees.length, depuis]));
   return gardees;
@@ -515,7 +521,6 @@ function analyseStatique(p) {
     if (roque === null && c.san.startsWith('O-O')) roque = c.numero;
     mesCoups.push(Object.assign({}, c, { temps: t, enPriseAvant: av, gratuitesDispo: advAv, enPriseApres: ap }));
   }
-  const dernier = p.coups.length ? p.coups[p.coups.length - 1] : null;
   const clkFin = [...p.coups].reverse().find(c => c.trait === moi && c.clk !== null);
   return {
     roque, menaces, menacesOk, gratuites, gratuitesPrises,
@@ -898,14 +903,16 @@ function refGlissante(avant) {
    qui existe. Aucun chiffre n'est écrit en dur : chacun a le sien.
    Une pause de plus de deux mois remet le départ à la reprise : on se compare
    à son retour au jeu, pas à des parties d'il y a un an. */
+/* Numéro du jour d'une date AAAA-MM-JJ, compté en UTC : sans heure locale,
+   le passage à l'heure d'été ne fait plus d'une fenêtre de 30 jours une de 31. */
+const numJour = (d) => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) / 864e5;
 function refDepart() {
   const dates = Object.keys(S.d.jours).sort();
   if (!dates.length) return null;
-  const t = (d) => new Date(d + 'T00:00:00').getTime();
   let debut = dates[0];
-  for (let i = 1; i < dates.length; i++) if (t(dates[i]) - t(dates[i - 1]) > 60 * 864e5) debut = dates[i];
-  const fin = t(debut) + 30 * 864e5;
-  const jours = Object.entries(S.d.jours).filter(([d]) => t(d) >= t(debut) && t(d) < fin).map(([, j]) => j);
+  for (let i = 1; i < dates.length; i++) if (numJour(dates[i]) - numJour(dates[i - 1]) > REGLAGES.PAUSE_NOUVEAU_DEPART_J) debut = dates[i];
+  const d0 = numJour(debut), fin = d0 + REGLAGES.FENETRE_REFERENCE_J;
+  const jours = Object.entries(S.d.jours).filter(([d]) => numJour(d) >= d0 && numJour(d) < fin).map(([, j]) => j);
   return moyenneJours(jours, 1, 1);
 }
 
@@ -915,8 +922,14 @@ function moyenneJours(jours, minJours, minParties) {
 
   const sommeSi = (f, filtre) => jours.filter(filtre || (() => true)).reduce((a, j) => a + (f(j) || 0), 0);
   const avecMoteur = (j) => j.cpl !== null && j.cpl !== undefined;
-  const poidsMoteur = sommeSi(j => j.coups || j.parties, avecMoteur);
-  const partiesMoteur = sommeSi(j => j.parties, avecMoteur);
+  /* le cpl et les gaffes d'un jour ne portent que sur ses parties analysées :
+     on les pèse par elles, pas par toutes les parties du jour (un jour à une
+     partie analysée sur dix ne compte pas pour dix). Les jours calculés avant
+     ces champs retombent sur l'ancien poids. */
+  const poidsCpl = (j) => (typeof j.coupsMoteur === 'number' ? j.coupsMoteur : (j.coups || j.parties));
+  const poidsGaffes = (j) => (typeof j.partiesMoteur === 'number' ? j.partiesMoteur : j.parties);
+  const poidsMoteur = sommeSi(poidsCpl, avecMoteur);
+  const partiesMoteur = sommeSi(poidsGaffes, avecMoteur);
   const men = sommeSi(j => j.menaces), gr = sommeSi(j => j.gratuites);
 
   return {
@@ -926,8 +939,8 @@ function moyenneJours(jours, minJours, minParties) {
       const c = sommeSi(j => j.coups || 0);
       return c ? +(sommeSi(j => (j.tempsCoup || 0) * (j.coups || 0)) / c).toFixed(2) : null;
     })(),
-    cpl: poidsMoteur ? Math.round(sommeSi(j => avecMoteur(j) ? j.cpl * (j.coups || j.parties) : 0) / poidsMoteur) : null,
-    gaffes: partiesMoteur ? sommeSi(j => avecMoteur(j) ? j.gaffes * j.parties : 0) / partiesMoteur : null,
+    cpl: poidsMoteur ? Math.round(sommeSi(j => avecMoteur(j) ? j.cpl * poidsCpl(j) : 0) / poidsMoteur) : null,
+    gaffes: partiesMoteur ? sommeSi(j => avecMoteur(j) ? j.gaffes * poidsGaffes(j) : 0) / partiesMoteur : null,
     menaces: men ? sommeSi(j => j.menacesOk) / men : null,
     gratuites: gr ? sommeSi(j => j.gratuitesPrises) / gr : null,
     roque: sommeSi(j => j.roques) / nbParties,
@@ -935,7 +948,20 @@ function moyenneJours(jours, minJours, minParties) {
 }
 
 /* ========================================================== vues */
+/* Les moteurs propres à une vue (partie contre le bot, finales, bot
+   personnalisé) gardent chacun leur Stockfish : le bot répond même pendant
+   une analyse. Mais chacun pèse son module WebAssembly et sa table de
+   hachage : on les libère en quittant leur onglet, s'ils ne servent pas. Ils
+   se recréent au besoin. */
+function libererMoteurs(nom) {
+  const liberer = (o) => { if (o && o.moteur) { o.moteur.tuer(); o.moteur = null; } };
+  if (nom !== 'jouer' && typeof J !== 'undefined' && J && !J.enCours) liberer(J);
+  if (nom !== 'jouer' && typeof BP !== 'undefined' && BP && !BP.enCours) liberer(BP);
+  if (nom !== 'entrainement' && typeof FIN !== 'undefined' && FIN && !FIN.enCours) liberer(FIN);
+}
+
 function onglet(nom) {
+  libererMoteurs(nom);
   /* `[data-onglet]` et pas `nav button` : le bouton du son vit dans la même
      barre et n'est pas un onglet. */
   $$('nav button[data-onglet]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.onglet === nom)));
@@ -977,7 +1003,6 @@ const libelleJour = (d) => new Date(d + 'T12:00:00')
 
 function vueJour(dateISO) {
   S.dernierJour = dateISO;
-  const j = S.d.jours[dateISO];
   const parties = Object.values(S.d.parties).filter(p => p.date === dateISO);
   const tousJours = joursJoues();
   if (typeof majResumeCollection === 'function') majResumeCollection();
@@ -1103,9 +1128,9 @@ function vueJour(dateISO) {
     for (const g2 of toutes.sort((a, b) => b.perte - a.perte)) {
       const b = new Chess(g2.fen);
       let mieux = g2.meilleurUci, punition = g2.punitionUci;
-      try { const m = b.move({ from: mieux.slice(0, 2), to: mieux.slice(2, 4), promotion: mieux[4] }); mieux = m.san; } catch (e) { }
+      try { const m = b.move({ from: mieux.slice(0, 2), to: mieux.slice(2, 4), promotion: mieux[4] }); mieux = m.san; } catch (e) { /* coup illégal dans cette position : on garde la valeur par défaut */ }
       const b2 = new Chess(g2.fen);
-      try { b2.move(g2.san); const m2 = b2.move({ from: punition.slice(0, 2), to: punition.slice(2, 4), promotion: punition[4] }); punition = m2.san; } catch (e) { }
+      try { b2.move(g2.san); const m2 = b2.move({ from: punition.slice(0, 2), to: punition.slice(2, 4), promotion: punition[4] }); punition = m2.san; } catch (e) { /* coup illégal dans cette position : on garde la valeur par défaut */ }
       lg.append(el('div', { class: 'item' },
         el('div', { class: 'haut' },
           el('span', { class: 'tag red' }, `−${(g2.perte / 100).toFixed(1).replace('.', I18N.dec)}`),
@@ -1142,9 +1167,16 @@ function dureeTexte(min) {
   return m < 60 ? tx('{0} min', [m]) : tx('{0} h {1} min', [Math.floor(m / 60), m % 60]);
 }
 async function lancerImport() {
+  const r = await Taches.lancer(tx('import'), () => importerTout());
+  if (r && r.refus) {
+    const jr = $('#journal'); jr.hidden = false;
+    jr.textContent += Taches.refus(r) + '\n';
+  }
+}
+async function importerTout() {
   const ps = { chesscom: $('#pseudo').value.trim(), lichess: $('#pseudo-lichess').value.trim() };
   const depuis = $('#depuis').value || aujourdhui();
-  const noeuds = parseInt($('#profondeur').value, 10);
+  const noeuds = parseInt($('#profondeur').value, 10) || REGLAGES.NOEUDS_IMPORT;
   const jr = $('#journal'); jr.hidden = false; jr.textContent = '';
   /* `progres` réécrit sa propre ligne au lieu d'en ajouter une : « lecture
      des parties : 120 sur 466 » ne remplit pas le journal. */
@@ -1214,7 +1246,8 @@ async function lancerImport() {
     const ranger = (p) => { S.d.parties[p.url] = compacter(p); };
     let analysees = 0;
     if (!DEGRADE && file.length && !S.stop) {
-      if (!S.moteur) { log(tx('démarrage de Stockfish…')); S.moteur = new Moteur(); await S.moteur.pret(); }
+      if (!S.moteur) log(tx('démarrage de Stockfish…'));
+      await obtenirMoteur();
       const total = file.reduce((a, x) => a + x.nb + 1, 0);
       let fait = 0; prog.hidden = false;
       const t0 = Date.now();
@@ -1243,7 +1276,7 @@ async function lancerImport() {
     if (file.length) progres(tx('mise à jour des statistiques et des exercices…'));
     await new Promise(r => setTimeout(r, 0));
     const jours = new Set(nouvelles.map(p => p.date).concat(reprises.filter(p => p.moteur).map(p => p.date)));
-    for (const d of jours) majJour(d);
+    majJours(jours);
     const avant = Object.keys(S.d.exos || {}).length;
     collecterExos();
     if (file.length) log(tx('statistiques et exercices à jour.'));
@@ -1285,16 +1318,54 @@ const gaffesRetenues = (p) => ((p.moteur && p.moteur.gaffes) || []).filter(gaffe
    soient écartées du décompte (coups qui matent, mats longs). Sans recalcul,
    la courbe de Progression et le tableau par jour affichent un total différent
    de celui de l'entraînement. On recalcule une fois, à la bonne version. */
-const VERSION_JOURS = 3;   // 3 : temps par coup
-function migrerJours() {
-  if (S.d.versionJours === VERSION_JOURS) return;
-  for (const d of Object.keys(S.d.jours || {})) majJour(d);
+const VERSION_JOURS = 4;   // 3 : temps par coup ; 4 : menaces sous échec, poids des parties analysées
+async function migrerJours() {
+  if (S.d.versionJours === VERSION_JOURS) return false;
+  if ((S.d.versionJours || 0) < 4) await recalculerMenaces();
+  majJours(Object.keys(S.d.jours || {}));
   S.d.versionJours = VERSION_JOURS;
   sauver();
+  return true;
+}
+/* Jusqu'à la version 4, une pièce en prise pendant que tu étais en échec
+   (la fourchette avec échec) n'était pas comptée comme menacée : voir
+   fenAuTrait dans tactique.js. On recompte une fois les parties déjà
+   enregistrées, par tranches, sans figer la page. */
+async function recalculerMenaces() {
+  const parties = Object.values(S.d.parties).filter(p => p.stat && (p.sans || p.coups));
+  if (!parties.length) return;
+  await Chargement.pendant(tx('recalcul des menaces sur {0} parties…', [parties.length]), async () => {
+    let t = performance.now();
+    for (let i = 0; i < parties.length; i++) {
+      const p = parties[i];
+      try {
+        const s = analyseStatique(deplier(p));
+        p.stat.menaces = s.menaces; p.stat.menacesOk = s.menacesOk;
+      } catch (e) {
+        console.warn('recalcul des menaces', p.url, e);   // la partie garde ses anciens chiffres
+      }
+      if (performance.now() - t > 40) {
+        Chargement.avancer(i + 1);
+        await new Promise((ok) => setTimeout(ok, 0));
+        t = performance.now();
+      }
+    }
+  }, parties.length);
 }
 
-function majJour(dateISO) {
-  const parties = Object.values(S.d.parties).filter(p => p.date === dateISO);
+/* Plusieurs jours d'un coup : les parties sont rangées par date une seule
+   fois, au lieu de parcourir toutes les parties pour chaque jour. */
+function majJours(dates) {
+  const parJour = new Map();
+  for (const p of Object.values(S.d.parties)) {
+    if (!parJour.has(p.date)) parJour.set(p.date, []);
+    parJour.get(p.date).push(p);
+  }
+  for (const d of dates) majJour(d, parJour.get(d) || []);
+}
+
+function majJour(dateISO, liste) {
+  const parties = liste || Object.values(S.d.parties).filter(p => p.date === dateISO);
   if (!parties.length) return;
   const n = parties.length, somme = (f) => parties.reduce((a, p) => a + (f(p) || 0), 0);
   const avecMoteur = parties.filter(p => p.moteur);
@@ -1316,7 +1387,9 @@ function majJour(dateISO) {
     cpl: avecMoteur.length ? Math.round(avecMoteur.reduce((a, p) => a + p.moteur.cpl * p.moteur.nbCoups, 0)
       / avecMoteur.reduce((a, p) => a + p.moteur.nbCoups, 0)) : null,
     gaffes: avecMoteur.length ? avecMoteur.reduce((a, p) => a + gaffesRetenues(p).length, 0) / avecMoteur.length : null,
-    elo: parties[parties.length - 1].elo,
+    /* sur quoi portent cpl et gaffes : les seules parties analysées */
+    coupsMoteur: avecMoteur.reduce((a, p) => a + p.moteur.nbCoups, 0),
+    partiesMoteur: avecMoteur.length,
   };
 }
 
@@ -1436,7 +1509,7 @@ function rendreEcarts() {
   const ligneEcart = ({ e, n, dates, perteMoy, niveau, mieux, best }, anodin) => {
     const niv = NIVEAUX[niveau];
     let bestSan = null;
-    if (best) { try { const b = new Chess(e.fen); const m = b.move({ from: best.slice(0, 2), to: best.slice(2, 4), promotion: best[4] || 'q' }); bestSan = m && m.san; } catch (err) { } }
+    if (best) { try { const b = new Chess(e.fen); const m = b.move({ from: best.slice(0, 2), to: best.slice(2, 4), promotion: best[4] || 'q' }); bestSan = m && m.san; } catch (err) { /* coup illégal dans cette position : on garde la valeur par défaut */ } }
     return el('div', { class: 'item' + (anodin ? ' ecart-jouable' : '') },
       el('div', { class: 'haut' },
         el('span', { class: 'tag ' + niv.cls }, `${n}×`),
@@ -1655,7 +1728,7 @@ function collecterExos() {
     vus.add(id);
     const ex = S.d.exos[id] || { id, type: 'ouverture', serie: 0, reussites: 0, echecs: 0 };
     let solution = null;
-    try { const b = new Chess(e.fen); const m = b.move(e.attendu); solution = m && (m.from + m.to + (m.promotion || '')); } catch (err) { }
+    try { const b = new Chess(e.fen); const m = b.move(e.attendu); solution = m && (m.from + m.to + (m.promotion || '')); } catch (err) { /* coup illégal dans cette position : on garde la valeur par défaut */ }
     Object.assign(ex, {
       fen: e.fen, joue: e.joue, attendu: e.attendu, solution,
       alternative: o.best || null, perte: o.perteMoy, couleur: e.couleur,
@@ -1822,7 +1895,7 @@ async function etendreRejeu(ex) {
   if (!D.rejeu || matManque(ex) || (ex.ligneP && ex.ligneP.length >= 4)) return;
   const id = ex.id;
   try {
-    if (!S.moteur) { S.moteur = new Moteur(); await S.moteur.pret(); }
+    await obtenirMoteur();
     const ligne = (ex.ligneP || (ex.punition ? [ex.punition] : [])).slice();
     const b = new Chess(ex.fen);
     b.move(ex.joue);
@@ -1847,7 +1920,7 @@ async function etendreRejeu(ex) {
       majIdeeExo();
     }
     sauver();
-  } catch (e) { }
+  } catch (e) { ignorer(e, 'exercice : mise à jour'); }
 }
 
 /* Aller au demi-coup `n` de la séquence : 0 = la position d'avant ta gaffe. */
@@ -2041,7 +2114,7 @@ const NOEUDS_JUGE = 300000;
 
 async function perteDuCoup(ex, uci) {
   try {
-    if (!S.moteur) { S.moteur = new Moteur(); await S.moteur.pret(); }
+    await obtenirMoteur();
     if (ex.cpBest === undefined || ex.cpBest === null) {
       const r = await S.moteur.evaluer(ex.fen, NOEUDS_JUGE);
       if (r.cp === undefined || r.cp === null) return null;
@@ -2049,7 +2122,7 @@ async function perteDuCoup(ex, uci) {
     }
     const b = new Chess(ex.fen);
     let m = null;
-    try { m = b.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] || 'q' }); } catch (e) { }
+    try { m = b.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] || 'q' }); } catch (e) { /* coup illégal dans cette position : on garde la valeur par défaut */ }
     if (!m) return null;
     if (b.isCheckmate()) return 0;                       // mater ne perd rien
     if (b.isStalemate() || b.isInsufficientMaterial()) return Math.max(0, clampJuge(ex.cpBest));
@@ -2076,7 +2149,7 @@ async function jugerCoupMat(ex, uci, san, t0) {
   msg(tx('<span class="mv">{0}</span> — je vérifie que le mat tient…', [fr(san)]), 'info');
   let r = null;
   try {
-    if (!S.moteur) { S.moteur = new Moteur(); await S.moteur.pret(); }
+    await obtenirMoteur();
     r = await S.moteur.evaluer(t0.fen(), NOEUDS_JUGE);
   } catch (e) { r = null; }
   if (D.exo !== ex || S.drill !== 'exo') return;
@@ -2200,7 +2273,7 @@ function succesExo(ex, san, t0, uci, force) {
 function montrerMeilleur(ex, bouton) {
   const u = ex.solution;
   let mv = null;
-  try { mv = new Chess(ex.fen).move({ from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4] || 'q' }); } catch (e) { }
+  try { mv = new Chess(ex.fen).move({ from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4] || 'q' }); } catch (e) { /* coup illégal dans cette position : on garde la valeur par défaut */ }
   if (!mv) { if (bouton) bouton.disabled = true; return; }
   if (D.rejeu) D.rejeu.actif = false;
   const apres = new Chess(ex.fen); apres.move(mv.san);
@@ -2359,10 +2432,10 @@ function majBlocsExos() {
     for (const ex of liste.slice(0, 40)) {
       let uciJoue = null, sanBon = null;
       try { const bb = new Chess(ex.fen); const m = bb.move(ex.joue);
-        if (m) uciJoue = m.from + m.to + (m.promotion || ''); } catch (e) { }
+        if (m) uciJoue = m.from + m.to + (m.promotion || ''); } catch (e) { /* coup illégal dans cette position : on garde la valeur par défaut */ }
       try { const bb = new Chess(ex.fen); const u = ex.solution;
         const m = bb.move({ from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4] || 'q' });
-        sanBon = m && m.san; } catch (e) { }
+        sanBon = m && m.san; } catch (e) { /* coup illégal dans cette position : on garde la valeur par défaut */ }
       /* position avant le coup : flèche rouge sur ce qui a été joué, flèche
          verte sur le bon coup — masquée tant qu'on ne la demande pas, sinon
          l'exercice est résolu avant d'avoir commencé. */
@@ -2702,9 +2775,9 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('pagehide', () => { if (SAUVE.sale) ecrireDonnees(); });
 window.addEventListener('beforeunload', (ev) => {
-  if (DEGRADE) { try { localStorage.setItem('entraineur', JSON.stringify(S.d)); } catch (e) { } return; }
+  if (DEGRADE) { if (!ecrireLocal()) { ev.preventDefault(); ev.returnValue = ''; } return; }
   if (SAUVE.bloque) return;
-  if (SAUVE.enCours || (SAUVE.sale && JSON.stringify(S.d) !== SAUVE.dernier)) {
+  if (SAUVE.enCours || (SAUVE.sale && empreinteTexte(JSON.stringify(S.d)) !== SAUVE.dernier)) {
     ecrireDonnees(); ev.preventDefault(); ev.returnValue = '';
   }
 });
@@ -2794,7 +2867,7 @@ async function init() {
      devenait blanche. */
   $$('nav button[data-onglet]').forEach(b => b.addEventListener('click', () => onglet(b.dataset.onglet)));
   $('#btn-import').addEventListener('click', lancerImport);
-  $('#btn-stop').addEventListener('click', () => { S.stop = true; S.moteur && S.moteur.arreter(); });
+  $('#btn-stop').addEventListener('click', () => Taches.arreter());
   $('#btn-exo-ouv').addEventListener('click', () => demarrerExos('ouverture'));
   $('#btn-exo-gaffes').addEventListener('click', () => demarrerExos('gaffe'));
   /* Flèches du clavier pour dérouler la gaffe et sa punition. On ne prend la
@@ -2847,9 +2920,17 @@ async function init() {
   });
   const jours = Object.keys(S.d.jours).sort();
   if (jours.length) vueJour(jours[jours.length - 1]);
-  migrerJours();
   majBadges();
   Chargement.fin();
+  /* recalcul éventuel des statistiques (nouvelle version) : après le premier
+     affichage, puis on redessine ce qui en dépend */
+  migrerJours().then((change) => {
+    if (!change) return;
+    const ouvert = ($('nav button[data-onglet][aria-selected="true"]') || { dataset: {} }).dataset.onglet;
+    const js = Object.keys(S.d.jours).sort();
+    if (js.length && (!ouvert || ouvert === 'jour')) vueJour(S.dernierJour || js[js.length - 1]);
+    if (ouvert === 'progression') vueProgression();
+  }).catch((e) => console.warn('migration des statistiques', e));
   /* La collecte classe les gaffes non encore classées : au premier lancement
      après une mise à jour de la taxinomie, c'est une à deux secondes. On la
      fait après le premier affichage pour ne pas retarder l'ouverture. */
@@ -3047,7 +3128,7 @@ function dessinerGraphe() {
     const n = noeuds.get(k);
     for (const a of g.coupsDe(k)) {
       let san = a.u;
-      try { const t = Rep.jeuDepuisCle(k); const m = t.move({ from: a.u.slice(0, 2), to: a.u.slice(2, 4), promotion: a.u[4] || 'q' }); if (m) san = m.san; } catch (e) { }
+      try { const t = Rep.jeuDepuisCle(k); const m = t.move({ from: a.u.slice(0, 2), to: a.u.slice(2, 4), promotion: a.u[4] || 'q' }); if (m) san = m.san; } catch (e) { /* coup illégal dans cette position : on garde la valeur par défaut */ }
       const nv = ajouter(a.v, n.d + 1, [...n.chemin, a.u], san);
       liens.push({ de: n, vers: nv });
       if (!vus.has(a.v)) { vus.add(a.v); file.push(a.v); }
@@ -3652,7 +3733,8 @@ function avancerArbre() {
       ? tx('À toi : <strong>{0}</strong> coup(s) à retrouver sur {1} dans cette position.', [reste, s.total])
       : tx('À toi de jouer.'), '');
     const note = ((repDe(A.rep) || {}).notes || {})[Rep.cle(new Chess(s.fen))];
-    $('#drill-idee').innerHTML = note ? `<div class="msg">${note}</div>` : '';
+    /* la note vient de toi ou d'un PGN importé : du texte, jamais du HTML */
+    $('#drill-idee').replaceChildren(...(note ? [el('div', { class: 'msg' }, note)] : []));
     majAvancement();
     return;
   }
@@ -3712,7 +3794,7 @@ function coupArbre(de, vers, m) {
     if (typeof Son !== 'undefined') Son.jouer('faux');
     p.marquer(Object.assign({ [vers]: 'err' }, p.persistantes || {}));
     const t = new Chess(avant); let san = '?';
-    try { san = t.move({ from: de, to: vers, promotion: 'q' }).san; } catch (e) { }
+    try { san = t.move({ from: de, to: vers, promotion: 'q' }).san; } catch (e) { /* coup illégal dans cette position : on garde la valeur par défaut */ }
     msg(tx('<span class="mv bad">{0}</span> n’est pas dans ton répertoire ici. Réessaie, ou clique sur « Indice ».', [fr(san)]), 'ko');
     majAvancement();
     return;
@@ -3745,7 +3827,7 @@ function indiceExo() {
   if (D.mat && D.mat.joues.length) return indiceMat(ex);
   const u = ex.solution;
   let mv = null;
-  try { mv = new Chess(ex.fen).move({ from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4] || 'q' }); } catch (e) { }
+  try { mv = new Chess(ex.fen).move({ from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4] || 'q' }); } catch (e) { /* coup illégal dans cette position : on garde la valeur par défaut */ }
   D.plateau.marquer(mv ? { [mv.from]: 'sel', [mv.to]: 'cible' } : {});
   msg(mv
     ? tx('Le coup est <span class="mv good">{0}</span> — la pièce est marquée, sa case d’arrivée pointée. ', [fr(mv.san)])
@@ -3758,13 +3840,13 @@ async function indiceMat(ex) {
   msg(tx('Je cherche le coup…'), 'info');
   let r = null;
   try {
-    if (!S.moteur) { S.moteur = new Moteur(); await S.moteur.pret(); }
+    await obtenirMoteur();
     r = await S.moteur.evaluer(D.b.fen(), NOEUDS_JUGE);
   } catch (e) { r = null; }
   if (D.exo !== ex || S.drill !== 'exo') return;
   if (!r || !r.best) { msg(tx('Aucun indice disponible pour cette position.'), 'info'); return; }
   let mv = null;
-  try { mv = new Chess(D.b.fen()).move({ from: r.best.slice(0, 2), to: r.best.slice(2, 4), promotion: r.best[4] || 'q' }); } catch (e) { }
+  try { mv = new Chess(D.b.fen()).move({ from: r.best.slice(0, 2), to: r.best.slice(2, 4), promotion: r.best[4] || 'q' }); } catch (e) { /* coup illégal dans cette position : on garde la valeur par défaut */ }
   D.plateau.marquer(mv ? { [mv.from]: 'sel', [mv.to]: 'cible' } : {});
   if (typeof Son !== 'undefined') Son.jouer('indice');
   msg(mv
@@ -3987,7 +4069,7 @@ function matApres(fen, uci) {
 function classerGaffe(g) {
   const moi = g.couleur;
   let apres = null;
-  try { const b = new Chess(g.fen); b.move(g.san); apres = b.fen(); } catch (e) { }
+  try { const b = new Chess(g.fen); b.move(g.san); apres = b.fen(); } catch (e) { apres = null; /* coup illisible : pas de position d'après */ }
 
   /* Mat porté : le coup gagne la partie, ce n'est jamais une gaffe. Sécurité
      pour les données analysées avant le correctif. */
@@ -4011,7 +4093,7 @@ function classerGaffe(g) {
         const rendu = seeGain(b.fen(), m.to, moi === 'w' ? 'b' : 'w');
         if (gagne - rendu <= -100) return 'prise_mal_comptee';
       }
-    } catch (e) { }
+    } catch (e) { ignorer(e, 'classement : prise mal comptée'); }
   }
 
   /* Ce que le coup du moteur laisse aussi en prise n'est pas de notre fait : si
@@ -4024,7 +4106,7 @@ function classerGaffe(g) {
       const b = new Chess(g.fen);
       b.move({ from: g.meilleurUci.slice(0, 2), to: g.meilleurUci.slice(2, 4), promotion: g.meilleurUci[4] || 'q' });
       for (const z of enPrise(b.fen(), moi)) exigees.add(z.case);
-    } catch (e) { }
+    } catch (e) { ignorer(e, 'classement : pièces exigées'); }
   }
   const nous = (l) => l.filter(x => !exigees.has(x.case));
 
@@ -4046,7 +4128,7 @@ function classerGaffe(g) {
       const b = new Chess(apres);
       b.move({ from: g.punitionUci.slice(0, 2), to: g.punitionUci.slice(2, 4), promotion: g.punitionUci[4] || 'q' });
       if (nous(enPrise(b.fen(), moi)).filter(PERD_PIECE).length) return 'piece_perdue_apres';
-    } catch (e) { }
+    } catch (e) { ignorer(e, 'classement : pièce perdue après'); }
   }
 
   if (aprs.filter(PERD_PION).length) return 'pion_en_prise';
@@ -4061,7 +4143,7 @@ function classerGaffe(g) {
         if (net >= SEUIL_PIECE) return 'gratuit_rate';
         if (net >= 90) return 'prise_ratee';
       }
-    } catch (e) { }
+    } catch (e) { ignorer(e, 'classement : prise ratée'); }
   }
   return 'autre';
 }
@@ -4176,40 +4258,61 @@ function courbeType(t) {
     const info = el('p', { class: 'sous', style: 'margin:12px 0 6px' },
       tx('{0} partie(s) importée(s) sans analyse Stockfish : elles ne comptent pas dans la courbe.', [manquantes.length]));
     const barre = el('div', { class: 'barre', hidden: true }, el('i', { style: 'width:0%' }));
-    const bouton = el('button', { class: 'b g', onclick: async () => {
-      bouton.disabled = true; barre.hidden = false;
-      await analyserManquantes(manquantes, (fait, total, nom) => {
+    const [bouton, stop] = boutonTache({
+      libelle: DEGRADE ? tx('Analyse indisponible en mode fichier') : tx('Analyser ces {0} partie(s)', [manquantes.length]),
+      info, barre, style: '',
+      executer: () => analyserManquantes(manquantes, (fait, total, nom) => {
         barre.querySelector('i').style.width = Math.round(100 * fait / total) + '%';
         info.textContent = tx('analyse : {0} ({1}/{2})…', [nom, fait, total]);
-      });
-      S.gaffesCache = null; S.typesCache = null;
-      vueProgression();
-    } }, DEGRADE ? tx('Analyse indisponible en mode fichier') : tx('Analyser ces {0} partie(s)', [manquantes.length]));
+      }),
+      apres: () => { S.gaffesCache = null; S.typesCache = null; vueProgression(); },
+    });
     if (DEGRADE) bouton.disabled = true;
-    zone.append(info, barre, bouton);
+    zone.append(info, barre, bouton, stop);
   }
   return zone;
 }
 
+/* Le bouton d'une longue tâche de la vue Progression, et son « Arrêter ». Le
+   bouton revient même en cas d'erreur ; si une autre tâche tourne (un import),
+   on le dit au lieu de lancer la deuxième par-dessus. */
+function boutonTache({ libelle, info, barre, style, executer, apres }) {
+  const stop = el('button', { class: 'b g', type: 'button', hidden: true, style: (style || '') + ';margin-left:8px',
+    onclick: () => Taches.arreter() }, tx('Arrêter'));
+  const b = el('button', { class: 'b g', type: 'button', style: style || '', onclick: async () => {
+    b.disabled = true; barre.hidden = false; stop.hidden = false;
+    let r = null, echec = null;
+    try { r = await executer(); } catch (e) { echec = e; console.error(e); }
+    finally { b.disabled = false; stop.hidden = true; }
+    if (echec) { info.textContent = tx('erreur : ') + echec.message; return; }
+    if (r && r.refus) { barre.hidden = true; info.textContent = Taches.refus(r); return; }
+    apres(r);
+  } }, libelle);
+  return [b, stop];
+}
+
 /* Relance Stockfish sur les parties stockées qui n'ont pas de données moteur. */
 async function analyserManquantes(liste, onTick) {
-  if (DEGRADE) return;
-  if (!S.moteur) { S.moteur = new Moteur(); await S.moteur.pret(); }
-  S.stop = false;
+  if (DEGRADE) return null;
+  return Taches.lancer(tx('analyse des parties'), (t) => analyserManquantesTache(t, liste, onTick));
+}
+async function analyserManquantesTache(t, liste, onTick) {
+  await obtenirMoteur();
   let fait = 0;
   for (const p of liste) {
-    if (S.stop) break;
+    if (t.arret) break;
     onTick && onTick(fait, liste.length, p.adversaire);
     const plein = deplier(p);
-    const noeuds = parseInt(($('#profondeur') || {}).value, 10) || 120000;
+    const noeuds = parseInt(($('#profondeur') || {}).value, 10) || REGLAGES.NOEUDS_IMPORT;
     const r = await analyseMoteur(plein, noeuds);
     if (r) { p.moteur = r; S.d.parties[p.url] = p; }
     fait++;
     onTick && onTick(fait, liste.length, p.adversaire);
   }
   const jours = new Set(liste.map(p => p.date));
-  for (const d of jours) majJour(d);
+  majJours(jours);
   sauver();
+  return { fait };
 }
 
 /* ---------- affinage : relire les positions de gaffe en profondeur ----------
@@ -4217,13 +4320,15 @@ async function analyserManquantes(liste, onTick) {
    l'import. À cette profondeur Stockfish rate les mats longs : un mat en
    quinze non vu se retrouve rangé en « pion laissé en prise ». On relit donc
    les seules positions de gaffe à 800 000 nœuds, ce qui les trouve. */
-const NOEUDS_AFFINAGE = 800000;
+const NOEUDS_AFFINAGE = REGLAGES.NOEUDS_AFFINAGE;
 const clampCp = (x) => Math.max(-1200, Math.min(1200, x));
 
 async function affinerGaffes(onTick) {
   if (DEGRADE) return null;
-  if (!S.moteur) { S.moteur = new Moteur(); await S.moteur.pret(); }
-  S.stop = false;
+  return Taches.lancer(tx('affinage des gaffes'), (t) => affinerGaffesTache(t, onTick));
+}
+async function affinerGaffesTache(t, onTick) {
+  await obtenirMoteur();
   const boulot = [];
   /* seulement les gaffes pas encore relues : c'est le nombre annoncé sur le bouton */
   for (const p of Object.values(S.d.parties))
@@ -4231,9 +4336,9 @@ async function affinerGaffes(onTick) {
   let fait = 0, bouge = 0, retirees = 0;
   const touchees = new Set();
   for (const { p, g } of boulot) {
-    if (S.stop) break;
+    if (t.arret) break;
     let apres = null;
-    try { const b = new Chess(g.fen); b.move(g.san); apres = b.fen(); } catch (e) { }
+    try { const b = new Chess(g.fen); b.move(g.san); apres = b.fen(); } catch (e) { apres = null; }  // coup illisible : on relit l'avant seul
     const a = await S.moteur.evaluer(g.fen, NOEUDS_AFFINAGE);
     const b2 = apres ? await S.moteur.evaluer(apres, NOEUDS_AFFINAGE) : null;
     const av = a.cp, ap = b2 ? -b2.cp : g.evalApres;
@@ -4257,7 +4362,7 @@ async function affinerGaffes(onTick) {
     p.moteur.gaffes = p.moteur.gaffes.filter(g => g.perte >= 300);
     retirees += n0 - p.moteur.gaffes.length;
   }
-  for (const d of new Set([...touchees].map(u => S.d.parties[u].date))) majJour(d);
+  majJours(new Set([...touchees].map(u => S.d.parties[u].date)));
   sauver();
   S.gaffesCache = null; S.typesCache = null;
   return { vues: fait, total: boulot.length, bouge, retirees };
@@ -4313,17 +4418,20 @@ function carteTypesGaffes() {
       tx('{0} de ces gaffes sont encore classées sur l’analyse rapide de l’import ', [brutes])
       + tx('(120 000 nœuds), qui rate les mats longs : un mat en quinze non vu peut se retrouver rangé ailleurs. L’affinage relit ces seules positions en profondeur.'));
     const barre = el('div', { class: 'barre', hidden: true }, el('i', { style: 'width:0%' }));
-    const b = el('button', { class: 'b g', style: 'margin-bottom:16px', onclick: async () => {
-      b.disabled = true; barre.hidden = false;
-      const r = await affinerGaffes((fait, total) => {
+    const [b, stop] = boutonTache({
+      libelle: tx('Affiner le classement ({0} positions)', [brutes]),
+      info, barre, style: 'margin-bottom:16px',
+      executer: () => affinerGaffes((fait, total) => {
         barre.querySelector('i').style.width = Math.round(100 * fait / total) + '%';
         info.textContent = tx('affinage : {0}/{1} positions…', [fait, total]);
-      });
-      if (r) S.dernierAffinage = tx('Affinage terminé : {0} évaluation(s) corrigée(s) ', [r.bouge])
-        + tx('sur {0} positions relues, {1} gaffe(s) disculpée(s) et retirée(s).', [r.vues, r.retirees]);
-      vueProgression();
-    } }, tx('Affiner le classement ({0} positions)', [brutes]));
-    carte.append(info, barre, b);
+      }),
+      apres: (r) => {
+        if (r) S.dernierAffinage = tx('Affinage terminé : {0} évaluation(s) corrigée(s) ', [r.bouge])
+          + tx('sur {0} positions relues, {1} gaffe(s) disculpée(s) et retirée(s).', [r.vues, r.retirees]);
+        vueProgression();
+      },
+    });
+    carte.append(info, barre, b, stop);
   }
 
   /* tendance : cadence par partie sur les 7 derniers jours de jeu contre les 7 d'avant */
@@ -4371,7 +4479,7 @@ function carteTypesGaffes() {
           const b = new Chess(g.fen);
           const m = b.move({ from: mieux.slice(0, 2), to: mieux.slice(2, 4), promotion: mieux[4] || 'q' });
           mieux = m ? m.san : mieux;
-        } catch (e) { }
+        } catch (e) { /* coup illégal dans cette position : on garde la valeur par défaut */ }
         zone.append(el('div', { class: 'item' },
           el('div', { class: 'haut' },
             el('span', { class: 'tag red' }, `−${(g.perte / 100).toFixed(1).replace('.', I18N.dec)}`),

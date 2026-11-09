@@ -60,13 +60,18 @@ Tes données restent : c'est la même appli, signée avec la même clé. Si la c
 (une APK que tu as construite toi-même avec ta clé), Android refuse, et le bandeau
 l'explique.
 
+L'appli n'installe que les APK des releases de son propre dépôt (`DEPOT` dans
+`MainActivity.java`, en https, sur github.com, 200 Mo au plus), et Android n'accepte que
+le même paquet signé de la même clé.
+
 ## Publier une version
 
 Pour le mainteneur du dépôt. L'appli compare sa version, écrite dans
 `entraineur/app/version.js`, au nom de la dernière release du dépôt indiqué dans ce même
 fichier.
 
-1. Change `version` dans `entraineur/app/version.js`, par exemple `2026.11.15`.
+1. Change `version` dans `entraineur/app/version.js`, par exemple `2026.11.15`, et
+   vérifie que tout passe : `npm test` (voir le README, « Développer »).
 2. Construis l'APK : `./construire_apk.sh`. Son nom de version est repris de
    `version.js`. Signe-la **avec la même clé** que les versions précédentes : sinon,
    Android refusera la mise à jour.
@@ -83,10 +88,19 @@ fichier.
 Tant que le dépôt est privé, GitHub répond « introuvable » aux applis : personne ne voit
 de mise à jour.
 
+Si tu publies ta propre version de l'appli (un fork), change le dépôt à deux endroits :
+`depot` dans `entraineur/app/version.js`, et `DEPOT` (en minuscules) dans
+`source/java/io/github/amaurycu/entraineur/MainActivity.java`. Sinon, l'appli refuse
+d'installer tes releases.
+
 ## Ce qui change par rapport à l'ordinateur
 
 - **Données** : stockées dans l'espace privé de l'appli. Pour avoir les mêmes données
   que sur l'ordinateur, active la synchronisation GitHub (bouton « Synchro »).
+- **Sauvegarde du téléphone** : l'appli n'en fait pas partie (`allowBackup="false"`).
+  Ses données contiennent tes jetons GitHub et Lichess en clair, qui partiraient sinon
+  dans la sauvegarde Google. Avant de changer de téléphone, active la synchronisation :
+  c'est elle qui transporte tes données.
 - **Export PGN** : Android demande où enregistrer le fichier. **Import PGN** : le
   sélecteur de fichiers d'Android s'ouvre.
 - **Bouton retour** : il remonte l'historique de la page, puis met l'appli en

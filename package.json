@@ -1,0 +1,17 @@
+{
+  "name": "chaxmat",
+  "private": true,
+  "description": "Outils de développement de Chaxmat : tests, lint, types. L'application elle-même n'a besoin d'aucun paquet.",
+  "license": "SEE LICENSE IN LICENSE",
+  "scripts": {
+    "test": "node --test \"tests/*.test.js\"",
+    "lint": "eslint entraineur/app tests",
+    "types": "tsc -p tsconfig.json",
+    "traductions": "python3 outils/traductions.py verifier"
+  },
+  "devDependencies": {
+    "eslint": "9.39.5",
+    "playwright": "1.56.0",
+    "typescript": "5.9.3"
+  }
+}

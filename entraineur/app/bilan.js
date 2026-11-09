@@ -393,7 +393,7 @@ function ouvertureBilan() {
     return z;
   }
   if (!sortie) {
-    z.append(el('p', { style: 'margin:0', html: tx('Toute l’ouverture est restée dans ton répertoire « {0} ».', [nomRep.nom]) }));
+    z.append(el('p', { style: 'margin:0', html: tx('Toute l’ouverture est restée dans ton répertoire « {0} ».', [echapper(nomRep.nom)]) }));
     return z;
   }
   const k = B.M.coups[sortie.i], n = B.M.notes[sortie.i];
@@ -898,10 +898,10 @@ function ajouterExercice(i) {
   try {
     ex.categorie = classerGaffe({ san: ex.joue, fen: ex.fen, couleur: ex.couleur, perte: ex.perte,
       evalAvant: ex.evalAvant, evalApres: ex.evalApres, meilleurUci: ex.solution, punitionUci: ex.punition });
-  } catch (e) { }
+  } catch (e) { ignorer(e, 'bilan : classement de la gaffe'); }
   S.d.exos[id] = ex;
   sauver();
-  try { if (typeof majBadges === 'function') majBadges(); } catch (e) { }
+  try { if (typeof majBadges === 'function') majBadges(); } catch (e) { ignorer(e, 'bilan : badges'); }
   return true;
 }
 
@@ -924,7 +924,7 @@ async function lancerLigne(type) {
      construit donc la suite en réinterrogeant le moteur à chaque demi-coup. */
   let pv = null;
   try {
-    if (!S.moteur) { S.moteur = new Moteur(); await S.moteur.pret(); }
+    await obtenirMoteur();
     const r = await S.moteur.evaluer(fen, 400000);
     pv = (r.pv && r.pv.length) ? r.pv.slice(0, 4) : (r.best ? [r.best] : []);
     if (premier && pv[0] !== premier && type === 'punition') pv = [premier];
@@ -1061,7 +1061,7 @@ async function coupQuiz(m) {
   q.attente = true; q.msg = 'calcul'; infoCoup();
   let perte = null, reponse = null, evApres = null;
   try {
-    if (!S.moteur) { S.moteur = new Moteur(); await S.moteur.pret(); }
+    await obtenirMoteur();
     if (q.cpBest === null) { const r = await S.moteur.evaluer(q.fen, 300000); q.cpBest = r.cp; }
     const b = Expl.plateau(q.fen); Expl.jouer(b, uci);
     if (b.isCheckmate()) perte = 0;
@@ -1172,7 +1172,7 @@ async function chercherSeulsCoups() {
   });
   const seuls = {};
   try {
-    if (!S.moteur) { S.moteur = new Moteur(); await S.moteur.pret(); }
+    await obtenirMoteur();
     for (const n of cands) {
       if (jeton !== B.jeton) return;
       const l = await S.moteur.multi(M.coups[n.i].fen, 150000, 2);
@@ -1204,7 +1204,7 @@ function statsMoteur(stock) {
   });
   stock._prec = undefined;
   S.gaffesCache = null; S.typesCache = null;
-  try { if (typeof majJour === 'function') majJour(stock.date); } catch (e) { }
+  try { if (typeof majJour === 'function') majJour(stock.date); } catch (e) { ignorer(e, 'bilan : statistiques du jour'); }
 }
 
 /* ========================================================== analyse, incrémentale et annulable */
@@ -1223,7 +1223,7 @@ async function analyserPourBilan(auto) {
   const total = positions.length;
   const evals = [], bests = [];
   try {
-    if (!S.moteur) { S.moteur = new Moteur(); await S.moteur.pret(); }
+    await obtenirMoteur();
     for (let i = 0; i < total; i++) {
       if (jeton !== B.jeton) return;               // on a quitté cette partie
       const r = await S.moteur.evaluer(positions[i], 150000);

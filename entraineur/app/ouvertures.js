@@ -48,7 +48,7 @@ function majGrapheRep(id, g) {
   sauver();
   /* Les pastilles des onglets dépendent du répertoire (positions à revoir,
      écarts) : un ajout ou une suppression dans l'éditeur doit s'y voir. */
-  try { if (typeof majBadges === 'function') majBadges(); } catch (e) { }
+  try { if (typeof majBadges === 'function') majBadges(); } catch (e) { ignorer(e, 'ouvertures : badges'); }
 }
 
 function nouvelIdRep() {
@@ -354,7 +354,7 @@ async function remplirStockfish(k) {
     await new Promise(ok => setTimeout(ok, 350));
     if (Rep.cle(E.jeu) !== k || !$('#p-editeur').classList.contains('actif')) return;
     try {
-      if (!S.moteur) { S.moteur = new Moteur(); await S.moteur.pret(); }
+      await obtenirMoteur();
       res = await S.moteur.multi(fen, NOEUDS_EDITEUR, 4);
       _sfCache.set(k, res);
     } catch (e) {
@@ -370,7 +370,7 @@ async function remplirStockfish(k) {
   const g = grEd();
   res.forEach((l, i) => {
     let m = null;
-    try { m = new Chess(fen).move({ from: l.uci.slice(0, 2), to: l.uci.slice(2, 4), promotion: l.uci[4] || 'q' }); } catch (e) { }
+    try { m = new Chess(fen).move({ from: l.uci.slice(0, 2), to: l.uci.slice(2, 4), promotion: l.uci[4] || 'q' }); } catch (e) { /* coup illégal dans cette position : on garde la valeur par défaut */ }
     if (!m) return;
     const connu = !!g.trouver(k, l.uci);
     box.append(el('div', { class: 'cp' + (connu ? ' connu' : ''), onclick: () => ajouterCoupEditeur(m.from, m.to, m) },
@@ -639,7 +639,7 @@ function executerQuiz(q, o) {
     const a = attendu();
     const uci = de + vers + (mm && mm.promotion ? mm.promotion : '');
     let joue = null;
-    try { joue = new Chess(jeu.fen()).move({ from: de, to: vers, promotion: (mm && mm.promotion) || 'q' }); } catch (e) { }
+    try { joue = new Chess(jeu.fen()).move({ from: de, to: vers, promotion: (mm && mm.promotion) || 'q' }); } catch (e) { /* coup illégal dans cette position : on garde la valeur par défaut */ }
     if (!joue) return;
     if (uci !== uciDeMove(a)) {
       fautes++; faute = true;

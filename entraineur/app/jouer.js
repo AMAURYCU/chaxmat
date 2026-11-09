@@ -325,7 +325,7 @@ function lancerPartie(opts) {
     pendule: pd, temps: { w: (pd ? pd.base : BASE_SANS_PENDULE) * 1000, b: (pd ? pd.base : BASE_SANS_PENDULE) * 1000 },
     depuis: Date.now(), durees: [], indices: 0, sortie: null, fin: null, sortieMsg: null,
   });
-  if (!J.moteur) J.moteur = new Moteur();
+  if (!J.moteur || !J.moteur.vivant()) J.moteur = new Moteur();
   if (!J.plateau) J.plateau = new Plateau($('#plateau-jeu'));
   J.plateau.onCoup = J.jeu.turn() === camp ? coupHumainPlateau : null;
   $('#jouer-accueil').hidden = true; $('#jouer-partie').hidden = false;
@@ -663,8 +663,6 @@ const sousTitre = (t) => el('p', { class: 'bil-sous-theme' }, el('strong', {}, t
 function bilanOuverture(B, z, entree, rep) {
   const p = B.p, info = p.bot || {}, M = B.M, moi = p.couleur;
   if (info.motifs && info.motifs.length || info.finales) z.append(sousTitre(tx('L’ouverture')));
-  const ligne = entree && info.theme.ligne ? entree.lignes.find(l => l.nom === info.theme.ligne) : null;
-  const nom = entree ? tx(entree.nom) : rep.nom;
   const sans = M.coups.map(k => k.san);
   const pts = (cp) => (typeof points === 'function' ? points(cp) : (cp / 100).toFixed(1));
   const mv = (k, cls) => Expl.mvTxt(k.fen, k.san, cls);
@@ -764,7 +762,7 @@ function bilanOuverture(B, z, entree, rep) {
 
 /* --- les tactiques : les occasions laissées par le bot, puis les autres */
 function bilanTactique(B, z) {
-  const p = B.p, info = p.bot || {}, M = B.M, moi = p.couleur;
+  const p = B.p, info = p.bot || {}, M = B.M;
   const noms = NOMS_MOTIFS(), voulus = new Set(info.motifs);
   const mv = (k, cls) => Expl.mvTxt(k.fen, k.san, cls);
   z.append(sousTitre(tx('Les occasions que le bot t’a laissées')));

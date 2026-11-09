@@ -740,7 +740,7 @@
         pireApres = Math.floor(code / 64) * 10;
       } else {
         attaque = 0;
-        try { attaque = b.attackers(m.from, adv).length > 0 && seeSimple(b, m.from, adv) > 0 ? 1 : 0; } catch (e) { }
+        try { attaque = b.attackers(m.from, adv).length > 0 && seeSimple(b, m.from, adv) > 0 ? 1 : 0; } catch (e) { /* position que chess.js refuse : pas d'attaque comptée */ }
         const b2 = new Echecs(fen); b2.move(m);
         pireApres = pireEnPrise(b2, c);
         gratuite = capt && VALP[capt] - seeSimple(b2, m.to, adv) >= 200 ? 1 : 0;

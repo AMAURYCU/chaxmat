@@ -5,11 +5,14 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- mise à jour depuis les releases GitHub (maj.js) : Android demande confirmation -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- allowBackup="false" : donnees.json porte tes jetons GitHub et Lichess en
+         clair ; il ne part pas dans la sauvegarde Google du téléphone. Pour
+         retrouver tes données sur un autre appareil : la synchronisation GitHub. -->
     <application
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
         android:theme="@style/Theme.Entraineur"
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:usesCleartextTraffic="false">
         <activity
             android:name=".MainActivity"
